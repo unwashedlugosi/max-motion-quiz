@@ -1,5 +1,5 @@
 /* app.js — Max's Motion Test Prep: quiz engine + UI.
- * Depends on: sketch.js (Sketch, Diagrams), content.js (QUESTION_BANK, TOPICS).
+ * Depends on: sketch.js (Sketch, Diagrams), content.js (QUESTION_BANK, TOPICS), store.js (QuizStore), config.js (QUIZ_CONFIG).
  * No build step. Everything user-visible is plain DOM built with h().
  */
 (function () {
@@ -9,7 +9,6 @@
    * Config
    * ===================================================================== */
   const TEST_DATE = '2026-10-21';
-  const STORE_KEY = 'maxMotionPrep.v1';
   const QUIZ_LEN = 10;
   const RETRY_GAP = 3;          // a missed question comes back this many positions later
   const SEPARATION = 4;         // two right answers count as "separated" if >= this many answers apart
@@ -62,10 +61,6 @@
   function announce(msg) { if (liveEl) { liveEl.textContent = ''; setTimeout(() => { liveEl.textContent = msg; }, 30); } }
   const reduceMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const isFinePointer = () => !!(window.matchMedia && window.matchMedia('(pointer: fine)').matches);
-  function todayKey() {
-    const d = new Date();
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  }
   function daysToTest() {
     const [y, m, d] = TEST_DATE.split('-').map(Number);
     const t = new Date(y, m - 1, d);
@@ -112,70 +107,84 @@
   }
 
   /* =====================================================================
-   * Store — localStorage with in-memory fallback. Every access try/catch.
+   * Store — the quiz rules on top of QuizStore (store.js), which keeps the data
+   * (cloud database, or localStorage when no database is configured).
+   * Every change is described as an event so store.js can re-apply it on top of
+   * the server record if it was made before that record could be read.
    * ===================================================================== */
+  const QS = window.QuizStore;
   const Store = (function () {
-    let data = fresh();
-    let persistent = true;
-    function fresh() { return { v: 1, q: {}, missed: {}, counter: 0, rounds: 0 }; }
-    function load() {
-      try {
-        const raw = window.localStorage.getItem(STORE_KEY);
-        if (raw) {
-          const d = JSON.parse(raw);
-          if (d && d.v === 1 && d.q && typeof d.q === 'object' && d.missed && typeof d.missed === 'object') data = Object.assign(fresh(), d);
+    const D = () => QS.data();
+    const ymd = (t) => {
+      const d = new Date(t);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    };
+
+    /** Apply one event to the data (in place). Returns { info, changes } where changes is what to write. */
+    function applyEvent(ev) {
+      const data = D();
+      const changes = { q: {}, missed: {} };
+      let info = null;
+      if (ev.k === 'a') { // answer. ev.r: not a first attempt (doesn't change seen/correct/hist, still counts for clearing)
+        const id = ev.id, score = ev.s, isRetry = !!ev.r, today = ymd(ev.t);
+        data.counter++;
+        changes.counter = data.counter;
+        if (!isRetry) {
+          const rec = data.q[id] || (data.q[id] = { seen: 0, correct: 0, lastSeen: 0, streak: 0, prevStreak: 0, hist: [] });
+          rec.seen++;
+          rec.correct += score;
+          rec.lastSeen = ev.t;
+          rec.prevStreak = rec.streak;
+          rec.streak = score >= 1 ? rec.streak + 1 : 0;
+          rec.hist.push(score);
+          if (rec.hist.length > 5) rec.hist.shift();
+          changes.q[id] = rec;
         }
-      } catch (e) { persistent = false; }
+        info = { wasMissed: !!data.missed[id], cleared: false, pendingClear: false };
+        const m = data.missed[id];
+        if (score >= 1) {
+          if (m) {
+            if (m.right === 0) { m.right = 1; m.at = data.counter; m.day = today; info.pendingClear = true; changes.missed[id] = m; }
+            else if (m.day !== today || data.counter - m.at >= SEPARATION) { delete data.missed[id]; info.cleared = true; changes.missed[id] = null; }
+            else info.pendingClear = true;
+          }
+        } else {
+          data.missed[id] = { right: 0, at: 0, day: '', since: m ? m.since : ev.t };
+          changes.missed[id] = data.missed[id];
+        }
+      } else if (ev.k === 'm') { // amend: change the score of the most recent first attempt
+        const id = ev.id, rec = data.q[id];
+        if (!rec || !rec.hist.length) return { info, changes };
+        const old = rec.hist[rec.hist.length - 1];
+        rec.correct += ev.s - old;
+        rec.hist[rec.hist.length - 1] = ev.s;
+        rec.streak = ev.s >= 1 ? (rec.prevStreak || 0) + 1 : 0;
+        changes.q[id] = rec;
+        if (ev.s >= 1 && ev.f) { data.missed[id] = { right: 1, at: data.counter, day: ymd(ev.t), since: ev.t, flagged: true }; changes.missed[id] = data.missed[id]; }
+      } else if (ev.k === 'r') { // a round was started
+        data.rounds++;
+        changes.rounds = data.rounds;
+      }
+      return { info, changes };
     }
-    function save() {
-      try { window.localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch (e) { persistent = false; }
+    QS.setReplay((ev) => applyEvent(ev).changes);
+
+    function run(ev) {
+      const out = applyEvent(ev);
+      QS.commit(ev, out.changes);
+      return out.info;
     }
-    function reset() {
-      data = fresh();
-      try { window.localStorage.removeItem(STORE_KEY); } catch (e) { persistent = false; }
-    }
-    const get = (id) => data.q[id] || null;
-    const isMissed = (id) => !!data.missed[id];
+    const load = () => { QS.openLocal(); };
+    const reset = () => QS.reset();
+    const get = (id) => D().q[id] || null;
+    const isMissed = (id) => !!D().missed[id];
 
     /** Record one answer. isRetry: not a first attempt (doesn't change seen/correct/hist, still counts for clearing). */
-    function answer(id, score, isRetry) {
-      data.counter++;
-      const rec = data.q[id] || (data.q[id] = { seen: 0, correct: 0, lastSeen: 0, streak: 0, prevStreak: 0, hist: [] });
-      if (!isRetry) {
-        rec.seen++;
-        rec.correct += score;
-        rec.lastSeen = Date.now();
-        rec.prevStreak = rec.streak;
-        rec.streak = score >= 1 ? rec.streak + 1 : 0;
-        rec.hist.push(score);
-        if (rec.hist.length > 5) rec.hist.shift();
-      }
-      const info = { wasMissed: !!data.missed[id], cleared: false, pendingClear: false };
-      const m = data.missed[id];
-      if (score >= 1) {
-        if (m) {
-          if (m.right === 0) { m.right = 1; m.at = data.counter; m.day = todayKey(); info.pendingClear = true; }
-          else if (m.day !== todayKey() || data.counter - m.at >= SEPARATION) { delete data.missed[id]; info.cleared = true; }
-          else info.pendingClear = true;
-        }
-      } else {
-        data.missed[id] = { right: 0, at: 0, day: '', since: m ? m.since : Date.now() };
-      }
-      save();
-      return info;
-    }
+    const answer = (id, score, isRetry) => run({ k: 'a', id, s: score, r: isRetry ? 1 : 0, t: Date.now() });
     /** Change the score of the most recent first attempt (self-check / "I think I was right"). */
-    function amend(id, newScore, flag) {
-      const rec = data.q[id];
-      if (!rec || !rec.hist.length) return;
-      const old = rec.hist[rec.hist.length - 1];
-      rec.correct += newScore - old;
-      rec.hist[rec.hist.length - 1] = newScore;
-      rec.streak = newScore >= 1 ? (rec.prevStreak || 0) + 1 : 0;
-      if (newScore >= 1 && flag) data.missed[id] = { right: 1, at: data.counter, day: todayKey(), since: Date.now(), flagged: true };
-      save();
-    }
+    const amend = (id, newScore, flag) => { run({ k: 'm', id, s: newScore, f: flag ? 1 : 0, t: Date.now() }); };
     function qMastery(id) {
+      const data = D();
       const rec = data.q[id];
       if (!rec || !rec.hist.length) return null;
       const w = [0.5, 0.3, 0.2];
@@ -196,10 +205,11 @@
       return avg * coverage;
     }
     function missedIds() {
-      return Object.keys(data.missed).filter((id) => byId[id]).sort((a, b) => (data.missed[a].since || 0) - (data.missed[b].since || 0));
+      const missed = D().missed;
+      return Object.keys(missed).filter((id) => byId[id]).sort((a, b) => (missed[a].since || 0) - (missed[b].since || 0));
     }
-    const noteRound = () => { data.rounds++; save(); };
-    return { load, save, reset, get, isMissed, answer, amend, qMastery, topicMastery, missedIds, noteRound, isPersistent: () => persistent, _data: () => data };
+    const noteRound = () => { run({ k: 'r', t: Date.now() }); };
+    return { load, reset, get, isMissed, answer, amend, qMastery, topicMastery, missedIds, noteRound, isPersistent: () => QS.isPersistent(), _data: D };
   })();
 
   /* =====================================================================
@@ -508,7 +518,7 @@
   /* =====================================================================
    * App state + selection
    * ===================================================================== */
-  const state = { screen: 'home', ctx: null, round: null, dialog: null, homeNote: '' };
+  const state = { screen: 'home', ctx: null, round: null, dialog: null, homeNote: '', shownNote: '' };
 
   function weightOf(q, tm) {
     let w = 1;
@@ -595,6 +605,32 @@
   const masteryLabel = (m, seenAny) => (!seenAny ? 'not started' : m < 0.4 ? 'shaky' : m < 0.7 ? 'getting there' : m < 0.9 ? 'solid' : 'ready');
 
   /* =====================================================================
+   * Sync status (cloud mode only): small and quiet, never in the way
+   * ===================================================================== */
+  const SYNC_TEXT = { saved: 'Saved', saving: 'Saving\u2026', offline: "Offline. Your answers will save when you're back online." };
+  function paintSync(el) {
+    const s = QS.status();
+    el.textContent = SYNC_TEXT[s] || '';
+    el.setAttribute('data-state', s);
+  }
+  function syncNode() {
+    if (!QS.cloud) return null;
+    const el = h('span', { class: 'sync', 'data-sync': '' });
+    paintSync(el);
+    return el;
+  }
+  let lastSyncState = '';
+  QS.onStatus((s) => {
+    document.querySelectorAll('[data-sync]').forEach(paintSync);
+    if (s === 'offline' && lastSyncState && lastSyncState !== 'offline') announce("Offline. Your answers will save when you're back online.");
+    lastSyncState = s;
+  });
+  // Another device's answers (or ours, rebuilt on top of the server record) arrived while the home screen was showing.
+  QS.onData(() => {
+    if (state.screen === 'home' && !state.dialog) { state.homeNote = state.shownNote; showHome(); }
+  });
+
+  /* =====================================================================
    * Home
    * ===================================================================== */
   function showHome() {
@@ -609,6 +645,7 @@
     const hero = h('div', { class: 'home-main' }, [
       h('p', { class: 'eyebrow', html: countdownHtml() }),
       h('h1', { class: 'wordmark', tabindex: '-1', 'data-focus': '' }, ["Max's ", h('span', null, 'Motion'), ' Test Prep']),
+      syncNode(),
       state.homeNote ? h('p', { class: 'home-note', role: 'status' }, state.homeNote) : null,
       h('button', { class: 'btn btn-primary start-btn', type: 'button', onclick: () => startRound('quiz') }, [
         h('span', { class: 't' }, 'Start a quiz'),
@@ -626,7 +663,8 @@
     ]);
     const foot = h('div', { class: 'home-foot' }, [
       h('button', { class: 'btn btn-quiet', type: 'button', onclick: askReset }, 'Reset progress'),
-      Store.isPersistent() ? null : h('span', null, 'Progress is not being saved in this browser.'),
+      QS.cloud ? h('button', { class: 'btn btn-quiet', type: 'button', onclick: () => showCodeScreen({ canCancel: true }) }, 'Switch code') : null,
+      QS.cloud || Store.isPersistent() ? null : h('span', null, 'Progress is not being saved in this browser.'),
     ]);
 
     const cards = topicList().map((t) => {
@@ -644,17 +682,21 @@
       h('ul', { class: 'topics' }, cards),
     ]);
 
+    state.shownNote = state.homeNote;
     state.homeNote = '';
     if (!BANK.length) {
       mountScreen(h('div', { class: 'home' }, h('p', { class: 'problem' }, 'The question bank did not load. Reload the page to try again.')));
       return;
     }
     mountScreen(h('div', { class: 'home' }, [hero, side, foot]));
+    QS.refresh(); // pick up what other devices did (throttled; re-draws this screen only if something changed)
   }
   function askReset() {
     openDialog({
       title: 'Erase all progress?',
-      body: 'This clears your scores, mastery meters and the mistakes list on this device. It cannot be undone.',
+      body: QS.cloud
+        ? 'This clears your scores, mastery meters and the mistakes list on every device that uses your practice code. It cannot be undone.'
+        : 'This clears your scores, mastery meters and the mistakes list on this device. It cannot be undone.',
       focusIndex: 0,
       actions: [{ label: 'Keep it', primary: true }, { label: 'Yes, erase it', onClick: () => { Store.reset(); state.homeNote = 'Progress erased.'; showHome(); } }],
     });
@@ -710,6 +752,7 @@
         h('span', { class: 'ptext' }, ptext),
         h('span', { class: 'pbar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(pct), 'aria-label': 'Round progress' }, h('i', { style: 'width:' + pct + '%' })),
       ]),
+      syncNode(),
     ]);
 
     const layout = h('div', { class: 'qlayout' + (q.diagram ? ' has-diagram' : '') + ' type-' + q.type }, [
@@ -1476,13 +1519,69 @@
   /* =====================================================================
    * Boot + test hooks
    * ===================================================================== */
-  function boot() {
-    Store.load();
-    indexBank();
+  /* ---- practice code screen ---- */
+  function showCodeScreen(o) {
+    o = o || {};
+    leaveQuestion();
+    closeDialog();
+    state.screen = 'code';
+    state.round = null;
+    const input = h('input', { class: 'codein', type: 'text', id: 'codein', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', enterkeyhint: 'go', maxlength: '80', 'aria-label': 'Practice code', 'aria-describedby': 'codeHelp codeErr' });
+    const err = h('p', { class: 'code-err', id: 'codeErr', role: 'alert' });
+    const submit = () => {
+      const c = QS.normCode(input.value);
+      if (!c) { err.textContent = 'Type the code from your parent\'s link.'; input.focus(); return; }
+      if (!QS.validCode(c)) { err.textContent = 'That code does not look right. It has 4 to 40 letters, numbers or dashes.'; input.focus(); return; }
+      err.textContent = '';
+      go.disabled = true;
+      chooseCode(c);
+    };
+    const go = h('button', { class: 'btn btn-primary code-go', type: 'submit' }, 'Start');
+    const form = h('form', { class: 'codeform', novalidate: '' }, [
+      h('label', { class: 'label-hand', for: 'codein' }, 'Practice code'),
+      input, err, go,
+    ]);
+    form.addEventListener('submit', (e) => { e.preventDefault(); submit(); });
+    mountScreen(h('div', { class: 'codescreen' }, [
+      h('h1', { class: 'wordmark', tabindex: '-1', 'data-focus': '' }, 'Type your practice code'),
+      h('p', { id: 'codeHelp', class: 'code-help' }, "Your parent's link has it at the end, after the # sign."),
+      form,
+      o.canCancel ? h('button', { class: 'btn btn-quiet', type: 'button', onclick: () => showHome() }, 'Back') : null,
+    ]));
+    if (isFinePointer()) input.focus();
+  }
+
+  /** A valid code was chosen: leave the old one (if any), keep the new one in the URL, load its progress. */
+  async function chooseCode(c) {
+    if (c === QS.currentCode()) { showHome(); return; }
+    await QS.leave();
+    startCloud(c);
+  }
+
+  async function startCloud(c) {
+    state.screen = 'loading';
+    leaveQuestion();
+    closeDialog();
+    mountScreen(h('p', { class: 'loading', role: 'status' }, 'Loading your progress.'));
+    QS.setHash(c);
+    await QS.open(c);
     showHome();
   }
+
+  function boot() {
+    indexBank();
+    if (!QS.cloud) { Store.load(); showHome(); return; }
+    const c = QS.resolveCode();
+    if (c) startCloud(c); else showCodeScreen();
+  }
+  // Someone pasted a different practice link into this tab.
+  window.addEventListener('hashchange', () => {
+    if (!QS.cloud) return;
+    const c = QS.hashCode();
+    if (c && c !== QS.currentCode()) { QS.leave().then(() => startCloud(c)); }
+  });
   window.MaxMotion = {
-    Fuzzy, Store, state, Types,
+    Fuzzy, Store, QuizStore: QS, state, Types,
     showHome, startRound, next, finalize,
     startIds(ids) { startRound('ids', { ids }); },
     bank: () => BANK, evalGoal, parseNum, validateAI, buildGradePrompt,
