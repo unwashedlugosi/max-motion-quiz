@@ -1,0 +1,101 @@
+/* sketch.css — theme tokens + hand-drawn figure classes (ported from Max's Motion Test Prep).
+ * Layout concept: a whiteboard / graph-paper notebook. Figures are marker sketches; feedback is margin notes.
+ * Marker semantics, everywhere (figures, triangle, keypad, preview, chips):
+ *   F fraction = green marker   D decimal = blue marker   P percent = red marker
+ *   "not yet" feedback = orange marker   highlighter = yellow   ink = navy/black marker
+ */
+:root {
+  --paper: #f7f9fa;      /* white melamine board */
+  --card: #ffffff;
+  --grid: #c3d0da;       /* graph-paper lines: dark enough to survive Chromebook glare */
+  --ink: #18223b;        /* navy marker */
+  --ink-soft: #46516b;
+  --tray: #8d97a3;       /* aluminum tray */
+  --hl: #ffd63f;         /* highlighter */
+  --hl-soft: #fff0a8;
+  --f: #0f7a45;          /* green marker: fractions */
+  --d: #1b58c9;          /* blue marker: decimals */
+  --p: #c42537;          /* red marker: percents */
+  --ok: #0f7a45;         /* check marks */
+  --warn: #b35309;       /* orange marker: "not yet" */
+  --f-tint: #e3f3ea;
+  --d-tint: #e4ecfb;
+  --p-tint: #fbe5e7;
+  --warn-tint: #fdeedd;
+  --font-hand: 'Patrick Hand', 'Comic Sans MS', 'Chalkboard SE', cursive;
+  --font-body: 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #1b2430; --card: #232f3d; --grid: #34424f;
+    --ink: #eef2f6; --ink-soft: #b4c0cc; --tray: #6b7683;
+    --hl: #e8c33a; --hl-soft: #4a4420;
+    --f: #6fd3a0; --d: #8db9ff; --p: #ff8f98; --ok: #6fd3a0; --warn: #ffb067;
+    --f-tint: #1f3a32; --d-tint: #22324d; --p-tint: #43262d; --warn-tint: #43321f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #1b2430; --card: #232f3d; --grid: #34424f;
+  --ink: #eef2f6; --ink-soft: #b4c0cc; --tray: #6b7683;
+  --hl: #e8c33a; --hl-soft: #4a4420;
+  --f: #6fd3a0; --d: #8db9ff; --p: #ff8f98; --ok: #6fd3a0; --warn: #ffb067;
+  --f-tint: #1f3a32; --d-tint: #22324d; --p-tint: #43262d; --warn-tint: #43321f;
+  color-scheme: dark;
+}
+
+/* ---- SVG stroke classes ---- */
+svg.sk { overflow: visible; }
+.sk-ink    { stroke: var(--ink); }
+.sk-soft   { stroke: var(--ink-soft); }
+.sk-grid   { stroke: var(--grid); }
+.sk-hl     { stroke: var(--hl); }
+.sk-f      { stroke: var(--f); }
+.sk-d      { stroke: var(--d); }
+.sk-p      { stroke: var(--p); }
+.sk-warn   { stroke: var(--warn); }
+
+/* ---- SVG fill classes ---- */
+.sk-fill-hl    { fill: var(--hl); opacity: .5; }
+.sk-fill-f     { fill: var(--f); opacity: .28; }
+.sk-fill-d     { fill: var(--d); opacity: .22; }
+.sk-fill-p     { fill: var(--p); opacity: .30; }
+.sk-fill-p-solid { fill: var(--p); opacity: .55; }
+.sk-fill-ink   { fill: var(--ink); }
+.sk-fill-soft  { fill: var(--ink-soft); }
+.sk-fill-card  { fill: var(--card); }
+.sk-fill-paper { fill: var(--paper); }
+.sk-fill-none  { fill: none; }
+
+/* ---- SVG text ---- */
+.sk-text      { fill: var(--ink); font-family: var(--font-hand); }
+.sk-text-soft { fill: var(--ink-soft); font-family: var(--font-hand); }
+.sk-text-f    { fill: var(--f); font-family: var(--font-hand); }
+.sk-text-d    { fill: var(--d); font-family: var(--font-hand); }
+.sk-text-p    { fill: var(--p); font-family: var(--font-hand); }
+.sk-text-warn { fill: var(--warn); font-family: var(--font-hand); }
+.sk-num       { fill: var(--ink); font-family: var(--font-body); font-variant-numeric: tabular-nums; font-weight: 700; }
+.sk-num-soft  { fill: var(--ink-soft); font-family: var(--font-body); font-variant-numeric: tabular-nums; }
+.sk-num-d     { fill: var(--d); font-family: var(--font-body); font-variant-numeric: tabular-nums; font-weight: 700; }
+.sk-num-p     { fill: var(--p); font-family: var(--font-body); font-variant-numeric: tabular-nums; font-weight: 700; }
+
+/* ---- figure frame + HTML label overlay (labels use real math typography) ---- */
+.fig { display: grid; gap: 8px; min-width: 0; }
+.fig-stage { position: relative; min-width: 0; }
+.fig-scroll { overflow-x: auto; min-width: 0; }
+.fig-label {
+  position: absolute; transform: translate(-50%, -50%); white-space: nowrap;
+  font: 700 1rem/1.1 var(--font-body); font-variant-numeric: tabular-nums; color: var(--ink);
+  pointer-events: none;
+}
+.fig-label.hand { font-family: var(--font-hand); font-weight: 400; font-size: 1.1rem; }
+.fig-label.soft { color: var(--ink-soft); font-weight: 400; }
+.fig-label.f { color: var(--f); } .fig-label.d { color: var(--d); } .fig-label.p { color: var(--p); }
+.fig-label.q { color: var(--warn); font-size: 1.2rem; }
+.fig-label.above { transform: translate(-50%, -100%); }
+.fig-label.below { transform: translate(-50%, 0); }
+.fig-label.left { transform: translate(-100%, -50%); }
+.fig-caption { font-size: .98rem; color: var(--ink-soft); line-height: 1.4; }
+.fig-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.fig { grid-template-columns: minmax(0, 1fr); }
+.fig > * { min-width: 0; }
