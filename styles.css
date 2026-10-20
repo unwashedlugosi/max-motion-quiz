@@ -529,3 +529,4 @@ strong { font-weight: 700; }
   .study-def { font-size: 1.1rem; line-height: 1.35; }
   .study-term { font-size: 1.35rem; }
 }
+.note-block.exact-def strong.def-hl { font-size: 1.12em; }

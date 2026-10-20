@@ -50,16 +50,17 @@
   }
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rich = (s) => esc(s === undefined || s === null ? '' : s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
-  /** Like rich(), but the teacher's official definitions (bold or not) get the .def-hl highlight. */
+  /** Like rich(), but the teacher's official definitions (bold or not) get the .def-hl highlight.
+   *  Matching is exact and case-sensitive: only the teacher's own wording is highlighted, never a paraphrase. */
   function richDef(s) {
     const text = String(s === undefined || s === null ? '' : s);
     const defs = (Array.isArray(window.OFFICIAL_DEFINITIONS) ? window.OFFICIAL_DEFINITIONS : []).map((d) => d.def).sort((x, y) => y.length - x.length);
-    const re = defs.length ? new RegExp('(' + defs.map((d) => d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi') : null;
+    const re = defs.length ? new RegExp('(' + defs.map((d) => d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'g') : null;
     const plainPart = (t) => (re ? t.split(re).map((seg, i) => (i % 2 ? '<strong class="def-hl">' + esc(seg) + '</strong>' : esc(seg))).join('') : esc(t)).replace(/\n/g, '<br>');
     return text.split(/(\*\*.+?\*\*)/g).map((part) => {
       const m = /^\*\*(.+?)\*\*$/.exec(part);
       if (!m) return plainPart(part);
-      return '<strong' + (re && new RegExp(re.source, 'i').test(m[1]) ? ' class="def-hl"' : '') + '>' + esc(m[1]) + '</strong>';
+      return '<strong' + (re && new RegExp(re.source).test(m[1]) ? ' class="def-hl"' : '') + '>' + esc(m[1]) + '</strong>';
     }).join('');
   }
   const plain = (s) => String(s === undefined || s === null ? '' : s).replace(/\*\*/g, '');
@@ -261,10 +262,10 @@
     function all() { const o = {}; list().forEach((t) => { o[t.id] = status(t.id); }); return o; }
     const coldCount = (st) => list().filter((t) => (st || all())[t.id].known).length;
     const allCold = () => { const st = all(); return list().length > 0 && list().every((t) => st[t.id].known); };
-    /** Official definitions whose wording appears in some text (case-insensitive, markdown stripped). */
+    /** Official definitions whose exact wording appears in some text (case-sensitive, markdown stripped). */
     function inText(text) {
-      const t = plain(text).toLowerCase();
-      return list().filter((d) => t.indexOf(d.def.toLowerCase()) >= 0);
+      const t = plain(text);
+      return list().filter((d) => t.indexOf(d.def) >= 0);
     }
     /** One weighted pick among the definition questions.
      *  o: { states, exclude:Set(ids), avoid:Set(term ids), lastFmt, termCount:{term:n} } */
@@ -445,6 +446,16 @@
   function getSampleOnClick() {
     return Promise.race([samplePromise, new Promise((r) => setTimeout(() => r(null), 1500))]);
   }
+  /** A "write the teacher's definition" question: the exact wording is what is being learned. */
+  const isExactDef = (q) => !!q && (q.exactDef === true || (q.topic === 'defs' && q.fmt === 'short'));
+  function exactDefText(q) {
+    const d = (Array.isArray(window.OFFICIAL_DEFINITIONS) ? window.OFFICIAL_DEFINITIONS : []).find((x) => x.id === q.term);
+    return d ? d.def : plain((q.short || {}).modelAnswer);
+  }
+  function exactDefTerm(q) {
+    const d = (Array.isArray(window.OFFICIAL_DEFINITIONS) ? window.OFFICIAL_DEFINITIONS : []).find((x) => x.id === q.term);
+    return d ? d.term : '';
+  }
   function buildGradePrompt(q, answer) {
     const s = q.short || {};
     const ideas = (s.keyIdeas || []).map((i) => `- ${i.id}: ${i.text}`).join('\n');
@@ -470,6 +481,9 @@
       '- A correct real-life example counts even if it is different from the model answer.',
       '- Give partial credit if some key ideas are present but not enough.',
       '- Do not give credit for just naming a word without showing the idea.',
+      ...(isExactDef(q) ? [
+        "- This is the teacher's exact definition, which the student must learn word for word: " + exactDefText(q) + '. Ignore spelling, capitalization and punctuation completely. Mark correct if every key word of the definition is present with the same meaning, even with small word-order differences or a missing "the". Mark partial if the meaning is right but key words are swapped for different words, and in feedback show the exact wording to learn.',
+      ] : []),
       '',
       'Reply with only this JSON, nothing else:',
       '{"verdict": "correct" | "partial" | "incorrect", "ideasFound": ["<ids of the key ideas the student showed>"], "feedback": "<1 to 2 encouraging, specific sentences addressed to Max, naming what was good and what is missing; no exclamation points>"}',
@@ -1066,7 +1080,8 @@
     (res.lines || []).forEach((l) => note.appendChild(h('p', { html: rich(l) })));
     if (res.plainLines) res.plainLines.forEach((l) => note.appendChild(h('p', null, l)));
     (res.extras || []).forEach((n) => n && note.appendChild(n));
-    if (res.model) note.appendChild(h('div', { class: 'note-block' }, [h('span', { class: 'note-label' }, 'A good answer'), h('span', { html: rich(res.model) })]));
+    if (res.model && isExactDef(q)) note.appendChild(h('div', { class: 'note-block exact-def' }, [h('span', { class: 'note-label' }, "The teacher's exact words"), h('span', { html: richDef('**' + (exactDefTerm(q) ? exactDefTerm(q) + ': ' : '') + exactDefText(q) + '**') })]));
+    else if (res.model) note.appendChild(h('div', { class: 'note-block' }, [h('span', { class: 'note-label' }, 'A good answer'), h('span', { html: rich(res.model) })]));
     if (q.explain) note.appendChild(h('p', { class: Defs.inText(q.explain).length ? 'why has-def' : 'why' }, [h('span', { class: 'note-label' }, 'Why'), h('span', { html: richDef(q.explain) })]));
     if (q.example) note.appendChild(h('p', null, [h('span', { class: 'note-label' }, 'Example'), h('span', { html: rich(q.example) })]));
     if (res.showSteps && q.steps && q.steps.length) {
@@ -1410,7 +1425,7 @@
   Types.short = {
     build(ctx) {
       const q = ctx.q, s = q.short || {};
-      const ta = h('textarea', { id: 'shortTa', rows: '5', maxlength: '1500', spellcheck: 'false', autocomplete: 'off', placeholder: "Write it your way. Spelling doesn't count.", 'aria-label': 'Your answer' });
+      const ta = h('textarea', { id: 'shortTa', rows: '5', maxlength: '1500', spellcheck: 'false', autocomplete: 'off', placeholder: isExactDef(q) ? "Write the teacher's words. Spelling doesn't count." : "Write it your way. Spelling doesn't count.", 'aria-label': 'Your answer' });
       ta.addEventListener('input', () => ctx.setReady(ta.value.trim().length >= 2));
       ctx.ta = ta;
       ctx.focusEl = ta;
@@ -1476,7 +1491,7 @@
       else if (fail && fail !== 'cancelled' && !aiOff) footer = 'Claude could not check this one, so this is a quick keyword check instead.';
       const ex = s.exampleRequired ? ' and give an example' : '';
       const sc = h('div', { class: 'selfcheck', role: 'group', 'aria-labelledby': 'scQ' }, [
-        h('p', { id: 'scQ' }, [h('strong', null, `Did your answer say the same idea${ex}?`), ' Be honest. This only helps you.']),
+        h('p', { id: 'scQ' }, isExactDef(q) ? [h('strong', null, "Did you write the teacher's words? Spelling doesn't matter."), ' Be honest. This only helps you.'] : [h('strong', null, `Did your answer say the same idea${ex}?`), ' Be honest. This only helps you.']),
         h('div', { class: 'seg' }, [['Yes', 1], ['Partly', 0.5], ['No', 0]].map(([label, val]) => h('button', { class: 'btn', type: 'button', onclick: () => {
           finalize(ctx, { score: val, tone: val >= 1 ? 'good' : val > 0 ? 'part' : 'bad', headline: val >= 1 ? 'Good.' : val > 0 ? 'Partly there.' : 'Not yet.', model: s.modelAnswer, extras: [ideaList(ideas, found, true)], footer });
           ctx.primary.focus();
@@ -1674,7 +1689,7 @@
             h('span', { class: 'study-term' }, t.term),
             h('span', { class: 'dstate is-' + s.state }, [h('span', { class: 'dmark', 'aria-hidden': 'true', html: s.known ? ICON.check : '' }), Defs.STATE_TEXT[s.state]]),
           ]),
-          h('p', { class: 'study-def' }, h('span', { class: 'def-hl' }, t.def + '.')),
+          h('p', { class: 'study-def' }, h('span', { class: 'def-hl' }, t.def)),
         ]);
       })),
     ]);
