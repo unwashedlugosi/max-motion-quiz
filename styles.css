@@ -466,11 +466,11 @@ strong { font-weight: 700; }
 .defs-card.is-done { border-color: var(--good); }
 .defs-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .defs-title { font-family: var(--font-hand); font-weight: 400; font-size: 1.55rem; line-height: 1.05; }
-.defs-count { font-size: .98rem; line-height: 1.25; color: var(--ink-soft); }
-.defs-count strong { color: var(--ink); font-size: 1.1rem; }
+.defs-count, .focus-count { font-size: .98rem; line-height: 1.25; color: var(--ink-soft); }
+.defs-count strong, .focus-count strong { color: var(--ink); font-size: 1.1rem; }
 .defs-go { min-height: 48px; padding-inline: 16px; flex: none; }
 .defs-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-.dchip {
+.dchip, .fchip {
   display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 6px;
   font-size: .86rem; line-height: 1.2; color: var(--ink-soft); background: var(--paper);
   border: 1.5px dashed var(--ink-soft); border-radius: 999px;
@@ -480,10 +480,10 @@ strong { font-weight: 700; }
   border: 1.5px solid currentColor; border-radius: 50%; font-size: 0; color: inherit; overflow: hidden;
 }
 .dmark .icon, .dmark .ico { width: 11px; height: 11px; display: block; }
-.dchip.is-getting { border-style: solid; border-color: var(--ink); color: var(--ink); }
-.dchip.is-getting .dmark, .dstate.is-getting .dmark { background: linear-gradient(90deg, var(--hl) 50%, transparent 50%); }
-.dchip.is-cold, .dstate.is-cold { border-style: solid; border-color: var(--good); color: var(--ink); font-weight: 700; background: var(--note-good-bg); }
-.dchip.is-cold .dmark, .dstate.is-cold .dmark { background: var(--good); border-color: var(--good); color: var(--paper); }
+.dchip.is-getting, .fchip.is-getting { border-style: solid; border-color: var(--ink); color: var(--ink); }
+.dchip.is-getting .dmark, .fchip.is-getting .dmark, .dstate.is-getting .dmark { background: linear-gradient(90deg, var(--hl) 50%, transparent 50%); }
+.dchip.is-cold, .fchip.is-cold, .dstate.is-cold, .dchip.is-fixed, .fchip.is-fixed, .dstate.is-fixed { border-style: solid; border-color: var(--good); color: var(--ink); font-weight: 700; background: var(--note-good-bg); }
+.dchip.is-cold .dmark, .fchip.is-cold .dmark, .dstate.is-cold .dmark, .dchip.is-fixed .dmark, .fchip.is-fixed .dmark, .dstate.is-fixed .dmark { background: var(--good); border-color: var(--good); color: var(--paper); }
 .defs-legend { font-size: .78rem; line-height: 1.2; color: var(--ink-soft); }
 
 /* a teacher's official definition, wherever it shows up in bold */
@@ -530,3 +530,41 @@ strong { font-weight: 700; }
   .study-term { font-size: 1.35rem; }
 }
 .note-block.exact-def strong.def-hl { font-size: 1.12em; }
+
+/* ---------- Tonight's focus: home card, end-screen rows, "Watch again" panel ---------- */
+.focus-card {
+  display: grid; gap: 6px; padding: 10px 14px 10px; margin-bottom: 14px;
+  background: var(--card); border: 3px solid var(--ink); border-radius: var(--hand-radius); box-shadow: var(--pen-shadow);
+}
+.focus-card.is-done { border-color: var(--good); }
+.focus-title { font-family: var(--font-hand); font-weight: 400; font-size: 1.45rem; line-height: 1.1; }
+.focus-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.focus-go { min-height: 44px; }
+.focus-chips .fchip { font-size: .84rem; padding: 2px 9px 2px 5px; }
+.dchip.is-fixed, .fchip.is-fixed { border-style: solid; border-color: var(--good); }
+.focus-summary .study-list { grid-template-columns: 1fr; }
+.focus-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; padding-block: 6px; }
+.focus-row.is-fixed { border-color: var(--good); }
+.watch-btn { min-height: 44px; }
+.dialog.watch { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow: auto; }
+.watch-diagram { background: var(--card); border: 2px solid var(--ink-soft); border-radius: var(--hand-radius); padding: 6px 8px; }
+.watch-cap { margin-top: 8px; color: var(--ink-soft); font-size: 1rem; line-height: 1.35; }
+@media (max-width: 380px) {
+  .focus-head { flex-wrap: wrap; }
+  .focus-go { width: 100%; }
+  .focus-row { grid-template-columns: 1fr; }
+}
+@media (min-width: 900px) {
+  .endscreen.is-focus .endgrid { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); }
+  .focus-summary .study-list { grid-template-columns: 1fr; }
+}
+@media (max-height: 820px) and (min-width: 900px) {
+  .focus-card { margin-bottom: 8px; padding-block: 8px; gap: 5px; }
+  .focus-title { font-size: 1.3rem; }
+  .defs-card { margin-bottom: 8px; padding-block: 6px; gap: 5px; }
+  .defs-card .defs-title { font-size: 1.25rem; }
+  .defs-card .dchip { font-size: .78rem; padding: 1px 8px 1px 4px; }
+  .defs-card .defs-chips { gap: 4px; }
+  .defs-card .defs-go { min-height: 40px; }
+  .defs-card .defs-legend { display: none; }
+}
