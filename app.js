@@ -22,6 +22,7 @@
   const FOCUS_IN_QUIZ = 2;      // every regular quiz carries this many focus questions (from concepts not fixed yet)
   const FOCUS_NEEDS = 2;        // "fixed" needs right answers on at least this many different questions
   const FOCUS_EXTRA = 2;        // a focus round never grows by more than this many questions beyond FOCUS_LEN to fit retries
+  const FOCUS_PLAN_MAX = 18;    // the "show me why" chains + spot-the-mistake questions lined up at the start of a focus round (the round grows to fit them, up to this)
 
   const root = document.getElementById('app');
   const liveEl = document.getElementById('live');
@@ -321,6 +322,7 @@
     const STATE_TEXT = { not: 'not yet', getting: 'getting there', fixed: 'fixed' };
     const has = () => list().length > 0 && BANK.some((q) => q.focus);
     const usable = (q) => q.focus && q.type !== 'short'; // no typing in a focus round
+    const practice = (q) => usable(q) && !q.chain;       // "show me why" chain questions are asked in their own order, never as loose practice
 
     function status(id) {
       const passed = new Set();
@@ -357,7 +359,7 @@
      *  (for example to separate two questions of the one concept that is still open). */
     function pick(o) {
       const states = o.states || all();
-      let cands = BANK.filter((q) => usable(q) && states[q.focus] && !(o.exclude && o.exclude.has(q.id)) && !(o.avoid && o.avoid.has(q.focus)));
+      let cands = BANK.filter((q) => practice(q) && states[q.focus] && !(o.exclude && o.exclude.has(q.id)) && !(o.avoid && o.avoid.has(q.focus)));
       const open = cands.filter((q) => !states[q.focus].fixed);
       if (open.length) cands = open;
       if (!cands.length) return null;
@@ -376,6 +378,50 @@
       const cands = BANK.filter((q) => usable(q) && q.focus === id && q.spot && !(exclude && exclude.has(q.id)));
       return cands.length ? weighted(cands, cands.map(questionWeight)) : null;
     }
+    /** The chains ("show me why" demos) that help a concept: its own, plus any chain that lists it in `feeds`. */
+    function chainIdsFor(id) {
+      const out = [];
+      BANK.forEach((q) => { if (q.chain && (q.focus === id || (q.feeds && q.feeds.indexOf(id) >= 0)) && out.indexOf(q.chain) < 0) out.push(q.chain); });
+      return out;
+    }
+    /** One chain's questions in step order (no typing steps in a focus round). */
+    function chainQuestions(chainId) {
+      return BANK.filter((q) => q.chain === chainId && usable(q)).sort((a, b) => a.chainStep - b.chainStep);
+    }
+    /** The questions that open a focus round: for each concept not fixed yet, its chain (in order, all together), then its
+     *  spot-the-mistake question. Concepts with the least practice go first. Grows to at most `max` questions: a unit that
+     *  does not fit loses its chain and keeps just the spot question (or waits for the next round).
+     *  Each entry is { id, blk: concept id } so retries are never slipped into the middle of a block. */
+    function plan(openIds, states, max) {
+      const order = shuffle(openIds.slice()).sort((a, b) => (states[a] ? states[a].tried : 0) - (states[b] ? states[b].tried : 0));
+      const out = [], usedChains = new Set(), usedIds = new Set();
+      order.forEach((cid) => {
+        const unit = [];
+        const chains = chainIdsFor(cid).filter((c) => !usedChains.has(c));
+        chains.forEach((c) => chainQuestions(c).forEach((q) => { if (!usedIds.has(q.id)) unit.push(q); }));
+        const spot = pickSpot(cid, usedIds);
+        const full = unit.concat(spot ? [spot] : []);
+        let take = [];
+        if (out.length + full.length <= max) { take = full; chains.forEach((c) => usedChains.add(c)); }
+        else if (spot && out.length + 1 <= max) take = [spot];
+        take.forEach((q) => { usedIds.add(q.id); out.push({ id: q.id, blk: cid }); });
+      });
+      return out;
+    }
+    /** One "show me why" demo for a regular quiz: step 1 of the chain of a concept that is not fixed yet (or null). */
+    function pickDemo(exclude) {
+      const states = all();
+      const cands = [];
+      list().forEach((c) => {
+        if (states[c.id].fixed) return;
+        chainIdsFor(c.id).forEach((ch) => {
+          const q = chainQuestions(ch)[0];
+          if (q && !(exclude && exclude.has(q.id)) && !cands.some((x) => x.q.id === q.id)) cands.push({ q, w: states[c.id].state === 'not' ? 3 : 2 });
+        });
+      });
+      if (!cands.length) return null;
+      return weighted(cands.map((x) => x.q), cands.map((x) => x.w));
+    }
     /** n questions for a regular quiz: different concepts, concepts not fixed yet first. */
     function pickForQuiz(n) {
       const out = [], concepts = new Set(), exclude = new Set();
@@ -393,7 +439,7 @@
       if (q && q.diagram) return q;
       return BANK.find((x) => c && x.focus === c.id && x.diagram) || null;
     }
-    return { list, has, status, all, fixedCount, allFixed, pick, pickSpot, pickForQuiz, demoFor, STATE_TEXT };
+    return { list, has, status, all, fixedCount, allFixed, pick, pickSpot, pickForQuiz, pickDemo, plan, chainIdsFor, chainQuestions, demoFor, STATE_TEXT };
   })();
 
   /* =====================================================================
@@ -750,8 +796,11 @@
       // plus FOCUS_IN_QUIZ focus questions (concepts not fixed yet first); the rest come from everything else
       const defs = Defs.pickForQuiz(DEFS_IN_QUIZ);
       const foc = Focus.has() ? Focus.pickForQuiz(FOCUS_IN_QUIZ) : [];
-      const rest = pickWeighted(BANK.filter((q) => q.topic !== 'defs' && !q.focus), QUIZ_LEN - defs.length - foc.length, true);
-      return shuffle(defs.concat(foc, rest)).map((q) => q.id);
+      // plus one "show me why" demo (step 1 of a chain for a concept not fixed yet), in place of one of the other questions
+      const demo = Focus.has() ? Focus.pickDemo() : null;
+      const demos = demo ? [demo] : [];
+      const rest = pickWeighted(BANK.filter((q) => q.topic !== 'defs' && !q.focus), QUIZ_LEN - defs.length - foc.length - demos.length, true);
+      return shuffle(defs.concat(foc, demos, rest)).map((q) => q.id);
     }
     if (mode === 'topic') return pickWeighted(BANK.filter((q) => q.topic === opts.topic), QUIZ_LEN, false).map((q) => q.id);
     if (mode === 'review') return sheetQuestions('review-').map((q) => q.id);
@@ -774,7 +823,7 @@
     const ahead = () => round.queue.length - round.idx - 1;
     // minAhead: a miss near the end needs other questions after it, or it would come straight back (round gets 1 or 2 extra)
     while (ahead() < (minAhead || 0) || (firsts().length < round.total && ahead() < DRILL_AHEAD)) {
-      if (round.focusRound && firsts().length >= FOCUS_LEN + FOCUS_EXTRA) break; // many misses: stop adding, the retries just go at the end
+      if (round.focusRound && firsts().length >= (round.firstCap || FOCUS_LEN + FOCUS_EXTRA)) break; // many misses: stop adding, the retries just go at the end
       const last = round.queue[round.queue.length - 1];
       const lastQ = last ? byId[last.id] : null;
       const termCount = {};
@@ -788,9 +837,25 @@
     }
     round.total = Math.max(round.total, firsts().length);
   }
+  /** Focus round: a miss comes back about 3 later, but never inside someone else's block (a chain with its spot question stays
+   *  together), and preferably not right next to the same concept. A missed chain question is not asked again mid-chain: it returns
+   *  after the block ends. */
+  function focusRetryPos(round, q) {
+    const Q = round.queue;
+    const splits = (p) => p > 0 && p < Q.length && !!Q[p - 1].blk && Q[p - 1].blk === Q[p].blk;
+    const near = (p) => keyOfEntry(round, Q[p - 1]) === q.focus || keyOfEntry(round, Q[p]) === q.focus;
+    let fallback = -1;
+    for (let p = Math.max(round.idx + RETRY_GAP, round.idx + 1); p <= Q.length; p++) {
+      if (splits(p)) continue;
+      if (fallback < 0) fallback = p;
+      if (!near(p)) return p;
+    }
+    return fallback >= 0 ? fallback : Q.length;
+  }
   /** Where a missed planned-round question returns: 3 positions later, nudged so the same term/concept is never next to itself.
    *  If the end of the queue leaves no such spot, one more question (a different term/concept) is lined up first. */
   function drillRetryPos(round, q) {
+    if (round.focusRound) return focusRetryPos(round, q);
     const base = round.idx + RETRY_GAP;
     const key = planKey(round, q);
     const spot = () => {
@@ -816,7 +881,7 @@
       const p = spot();
       if (p > 0) return p;
       const firsts = round.queue.filter((x) => !x.retry);
-      if (round.focusRound && firsts.length >= FOCUS_LEN + FOCUS_EXTRA) break;
+      if (round.focusRound && firsts.length >= (round.firstCap || FOCUS_LEN + FOCUS_EXTRA)) break;
       const last = round.queue[round.queue.length - 1];
       const lastQ = last ? byId[last.id] : null;
       const nq = planPick(round, {
@@ -846,11 +911,10 @@
       const st = Focus.all();
       const open = Focus.list().filter((c) => !st[c.id].fixed).map((c) => c.id);
       state.round = { mode, opts, label: modeLabel(mode, opts), queue: [], idx: 0, results: [], total: FOCUS_LEN, retryOK: true, drill: true, focusRound: true, finishEarly: false, startedFixed: open.length === 0 };
-      // open with one "spot the mistake" question for every concept that is not fixed yet
-      shuffle(open).forEach((cid) => {
-        const q = Focus.pickSpot(cid, new Set(state.round.queue.map((x) => x.id)));
-        if (q) state.round.queue.push({ id: q.id });
-      });
+      // open with, for every concept that is not fixed yet: its "show me why" chain in order, then its "spot the mistake" question
+      state.round.queue = Focus.plan(open, st, FOCUS_PLAN_MAX);
+      state.round.total = Math.max(FOCUS_LEN, state.round.queue.length);
+      state.round.firstCap = Math.max(FOCUS_LEN + FOCUS_EXTRA, state.round.queue.length);
       fillDrill(state.round);
       showQuestion();
       return;
@@ -1852,7 +1916,7 @@
     const play = () => {
       stop();
       inst = window.Diagrams.mount(host, Object.assign({}, q.diagram, { interactive: false }), {});
-      if (q.after) timer = setTimeout(() => { timer = null; try { if (inst) inst.setParams(q.after); } catch (e) { console.error('after failed', e); } }, reduceMotion() ? 0 : 2800);
+      if (q.after) timer = setTimeout(() => { timer = null; try { if (inst) inst.setParams(q.after); } catch (e) { console.error('after failed', e); } }, reduceMotion() ? 0 : 1500);
     };
     const btns = [
       h('button', { class: 'btn', type: 'button', onclick: play }, 'Replay'),
