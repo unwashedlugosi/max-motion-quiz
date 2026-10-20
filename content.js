@@ -28,11 +28,11 @@
      demo: the question whose diagram is replayed by "Watch again" (its `after` plays after a moment).
      watch: one short, observational caption for that replay. */
   window.FOCUS_CONCEPTS = [
-    { id: 'rate-of-motion',    label: 'Rate of motion = speed',   demo: 'focus-rate-of-motion-02',    watch: 'Watch how the car\'s position changes with the clock.' },
-    { id: 'average-speed',     label: 'Average speed',            demo: 'focus-average-speed-03',     watch: 'Watch the whole trip: all the distance, all the time.' },
-    { id: 'velocity-direction', label: 'Velocity has direction',  demo: 'focus-velocity-direction-05', watch: 'Watch the arrow: its length is the speed, where it points is the direction.' },
-    { id: 'speed-or-velocity', label: 'Speed or velocity',        demo: 'focus-speed-or-velocity-04', watch: 'Watch what appears when the direction is added to the speed.' },
-    { id: 'turning-velocity',  label: 'Turning changes velocity', demo: 'focus-turning-velocity-05',  watch: 'Watch the dial and the arrow at each corner.' },
+    { id: 'rate-of-motion',    label: 'Rate of motion = speed',   demo: 'demo-rate-1',                watch: 'Watch both cars. Which things are changing?' },
+    { id: 'average-speed',     label: 'Average speed',            demo: 'demo-avg-1',                 watch: 'Watch the fast-then-slow car and the steady car that arrives with it.' },
+    { id: 'velocity-direction', label: 'Velocity has direction',  demo: 'demo-vel-dir-1',             watch: 'Watch the circle of places the snail could be, then what a direction does.' },
+    { id: 'speed-or-velocity', label: 'Speed or velocity',        demo: 'demo-vel-dir-1',             watch: 'Watch what happens when a direction is added to the speed.' },
+    { id: 'turning-velocity',  label: 'Turning changes velocity', demo: 'demo-turn-1',                watch: 'Watch the ball and the ghost ball that keeps the same velocity.' },
     { id: 'show-work',         label: 'Show your work',           demo: 'focus-show-work-02',         watch: 'Watch the distance and the time, then the speed.' }
   ];
 
@@ -3004,6 +3004,331 @@
         'The math works, but 100 and 4 are only the first leg. The whole trip is 150 ft in 6 s.'
       ],
       explain: 'Check each choice for four parts: the formula, the numbers from the problem, the answer, and the unit. Only one choice has all four with the right numbers: S = d ÷ t = 150 ÷ 6 = 25 ft/s.'
+    });
+  })();
+
+  /* ============================================================
+     "SHOW ME WHY" DEMO CHAINS: predict, watch, explain.
+     Max predicts first (a question about a picture), then the diagram's `after` plays what really
+     happens, then the explanation says what he SAW and only at the end names the idea.
+     ids demo-<chain>-<step>; chain: <chain id>, chainStep: 1..n; focus: <concept>; source 'review-fix'.
+     In a focus round, each open concept runs its chain in step order first (short-answer steps are skipped there).
+     feeds: other focus concepts that this chain also helps (its chain runs for them too).
+     ============================================================ */
+  (function () {
+    var VEL = '**Velocity: Describing a moving object using speed and direction**';
+    var ACC = '**Acceleration: The rate of change in velocity/speed**';
+    var MOT = '**Motion: Change in position**';
+    function C(chain, step, topic, focus, o) {
+      o.id = 'demo-' + chain + '-' + step;
+      o.topic = topic; o.source = 'review-fix'; o.focus = focus; o.chain = chain; o.chainStep = step;
+      Q.push(o);
+    }
+    var SNAIL = { who: 'snail', speed: 12, unit: 'cm/s', time: 5 };
+    function snail(extra) { var p = {}, k; for (k in SNAIL) { p[k] = SNAIL[k]; } for (k in (extra || {})) { p[k] = extra[k]; } return p; }
+
+    /* ---------------- chain vel-dir: velocity has a direction (also helps speed-or-velocity) ---------------- */
+    C('vel-dir', 1, 'velocity', 'velocity-direction', {
+      type: 'mc', difficulty: 1, feeds: ['speed-or-velocity'],
+      prompt: 'A snail crawls at 12 cm per second for 5 seconds. Where will it end up?',
+      diagram: dg('possible', snail({ direction: null }), false),
+      after: { direction: 'N' },
+      choices: [
+        'At one exact spot we can point to',
+        'Somewhere on the dashed circle, 60 cm from the start. We can\'t tell which spot.',
+        'Back at the start',
+        '120 cm away'
+      ],
+      answer: 1,
+      choiceFeedback: [
+        'Look at the arrows. They point every way, so no one spot is picked out. Speed and time alone do not give one spot.',
+        'Right. 12 × 5 = 60 cm, so every arrow stops on the circle 60 cm out. Nothing says which way, so any spot on the circle could be it.',
+        'The snail crawls for 5 seconds, so it does not end up back at the start. Every arrow ends 60 cm away.',
+        '12 × 5 = 60 cm, not 120. The scale bar on the map shows 60 cm.'
+      ],
+      explain: 'Look at all the arrows. Every spot on the circle is 60 cm away, so speed and time only tell you how far. When we add "north", all the arrows but one disappear and the snail lands on one spot.\nHow far is not enough. You also need which way.',
+      hint: 'How far can the snail go in 5 seconds? Then ask: do we know which way?'
+    });
+    C('vel-dir', 2, 'velocity', 'velocity-direction', {
+      type: 'manipulate', difficulty: 1, feeds: ['speed-or-velocity'],
+      prompt: 'The snail crawls 60 cm, but we do not know which way yet. Use the direction buttons.',
+      diagram: dg('possible', snail({ direction: null, directions: ['N', 'E', 'S', 'W'] }), true),
+      goal: { key: 'direction', op: 'eq', value: 'N' },
+      goalText: 'Make the snail go north so it lands on one spot.',
+      explain: 'When you picked a direction, the dashed circle faded and only one arrow was left. The snail landed on one spot, 60 cm north of where it started. A distance alone leaves many places it could be. A distance and a direction leave one.',
+      hint: 'Tap N.'
+    });
+    C('vel-dir', 3, 'velocity', 'velocity-direction', {
+      type: 'mc', difficulty: 1, feeds: ['speed-or-velocity'],
+      prompt: 'Look at the arrow. Which description tells you exactly where the snail goes?',
+      diagram: dg('possible', snail({ direction: 'N' }), false),
+      choices: ['12 cm per second', '60 cm', '12 cm per second north', '5 seconds'],
+      answer: 2,
+      choiceFeedback: [
+        'Only a speed. Cover the word "north" in the picture and the snail could be on any spot of the circle.',
+        '60 cm says how far, but not which way. Every spot on the circle is 60 cm away.',
+        'Right. The speed says how fast and "north" says which way, so there is one arrow and one spot.',
+        '5 seconds says how long. It says nothing about which way the snail went.'
+      ],
+      explain: 'Look at the arrow. How long it is shows how far the snail went, and where it points shows which way. 12 cm per second tells only how fast. 12 cm per second north also tells which way, so there is one spot.\nA speed with a direction is a velocity.\n' + VEL
+    });
+    C('vel-dir', 4, 'velocity', 'velocity-direction', {
+      type: 'mc', difficulty: 2, feeds: ['speed-or-velocity'],
+      prompt: 'Look at the two boxes. "North" answers which question?',
+      diagram: dg('possible', snail({ direction: null, mode: 'distance-vs-direction' }), false),
+      after: { direction: 'N' },
+      choices: ['How far?', 'How fast?', 'Which way?', 'How long?'],
+      answer: 2,
+      choiceFeedback: [
+        '"How far" is the left box, the odometer. It holds a number and a unit, like 60 cm. "North" is not a distance.',
+        '"How fast" is the speed, 12 cm per second. North does not tell how fast the snail goes.',
+        'Right. The right box is "which way", and a direction like north goes there.',
+        '"How long" is the time, 5 seconds. North does not tell how long.'
+      ],
+      explain: 'Look at the two boxes. The left one is the odometer and counts how far: 60 cm. The right one is the compass and shows which way: north. How far and which way are two different questions, and "north" answers only the second one.'
+    });
+    C('vel-dir', 5, 'velocity', 'velocity-direction', {
+      type: 'mc', difficulty: 2, feeds: ['speed-or-velocity'],
+      prompt: 'Same two boxes. "60 cm" answers which question?',
+      diagram: dg('possible', snail({ direction: 'N', mode: 'distance-vs-direction' }), false),
+      choices: ['Which way?', 'How fast?', 'How far?', 'How long?'],
+      answer: 2,
+      choiceFeedback: [
+        '"Which way" is the right box, the compass. 60 cm is not a direction.',
+        '"How fast" is the speed, 12 cm per second. 60 cm is the distance the snail went, not its speed.',
+        'Right. The odometer in the left box counts up to 60 cm. That is how far the snail went.',
+        '"How long" is the time, 5 seconds. 60 cm is a distance.'
+      ],
+      explain: 'Look at the odometer in the left box: it counts up to 60 cm, which is how far. The compass in the right box points north, which is which way. A distance answers "how far". Only a direction answers "which way", and velocity needs both the speed and the "which way".\n' + VEL
+    });
+    C('vel-dir', 6, 'velocity', 'velocity-direction', {
+      type: 'short', difficulty: 2, feeds: ['speed-or-velocity'],
+      prompt: 'Someone says velocity describes speed and distance. Use the snail to explain what is missing.',
+      diagram: dg('possible', snail({ direction: null }), false),
+      after: { direction: 'N' },
+      short: {
+        modelAnswer: 'What is missing is the direction. Speed and time only tell how far, so the snail could be anywhere on the circle. Velocity needs the direction too, like north, so you know which way it went.',
+        keyIdeas: [
+          { id: 'dir', text: 'says velocity needs a direction (which way)', keywords: ['direction', 'which way', 'north', 'east', 'south', 'west', 'way it went', 'way it goes', 'heading', 'where it is going', 'where its going'] },
+          { id: 'spots', text: 'says without it the snail could be on many spots', keywords: ['anywhere', 'circle', 'any spot', 'could be', 'many places', 'any place', 'dont know where', 'do not know where', 'cant tell', 'every spot', 'everywhere'] }
+        ],
+        need: 1, exampleRequired: false
+      },
+      explain: 'Look at the circle: with only a speed and a time, the snail could be on any spot 60 cm away. Add "north" and there is only one spot. So the missing piece is the direction, not the distance.\n' + VEL
+    });
+
+    /* ---------------- chain turn: turning changes velocity ---------------- */
+    C('turn', 1, 'velocity', 'turning-velocity', {
+      type: 'mc', difficulty: 2,
+      prompt: 'Watch the ball hit the wall and roll back. Now imagine its velocity never changed: same speed AND same direction. Where would it be one second after reaching the wall?',
+      diagram: dg('ghost', { scenario: 'bounce', speed: 25, unit: 'ft/s', showGhost: false }, false),
+      after: { showGhost: true },
+      choices: [
+        'Rolling back to the left at 25 ft/s',
+        'Stopped at the wall',
+        'Past the wall, still rolling right at 25 ft/s',
+        'Back at the start'
+      ],
+      answer: 2,
+      choiceFeedback: [
+        'That is what the real ball did. But a ball whose velocity never changed could not turn around.',
+        'A stopped ball has a speed of 0. Same speed means it keeps moving at 25 ft/s.',
+        'Right. Same speed and same direction means it keeps going right at 25 ft/s. That is the dashed ghost ball.',
+        'Back at the start would mean it turned around. Same direction means it keeps going the way it was going.'
+      ],
+      explain: 'The dashed ghost ball shows "same velocity": it keeps going the same way, straight on past the wall. The real ball came back instead. The gap between the real ball and the ghost is the change in velocity.',
+      hint: 'Same speed and same direction: what does the ball keep doing?'
+    });
+    C('turn', 2, 'velocity', 'turning-velocity', {
+      type: 'mc', difficulty: 2,
+      prompt: 'The speedometer needle said 25 ft/s the whole time. Did the ball have a constant velocity?',
+      diagram: dg('ghost', { scenario: 'bounce', speed: 25, unit: 'ft/s', showGhost: true }, false),
+      choices: [
+        'Did: its speed never changed',
+        'Did: it rolled the whole time',
+        'Did not: its direction flipped at the wall',
+        'Can\'t tell'
+      ],
+      answer: 2,
+      choiceFeedback: [
+        'The speed never changed, and the needle shows it. But velocity is speed and direction, and the arrow flipped at the wall.',
+        'Rolling the whole time only means it was moving. Look at the arrow: it pointed a different way after the wall.',
+        'Right. The arrow pointed right, then left. The direction changed, so the velocity changed, even though the needle never moved.',
+        'You can tell from the picture. The arrow on the real ball pointed right, then flipped to point left.'
+      ],
+      explain: 'Look at the needle: it never moved, so the speed stayed the same. Now look at the arrow on the ball: it pointed right, then flipped to point left. The direction changed, so the velocity changed, and the ghost ball shows the gap.\n' + VEL
+    });
+    C('turn', 3, 'velocity', 'turning-velocity', {
+      type: 'manipulate', difficulty: 2,
+      prompt: 'Watch the car turn the corner. Its speedometer never moves.',
+      diagram: dg('ghost', { scenario: 'turn', speed: 30, unit: 'mph', showGhost: false }, true),
+      goal: { key: 'showGhost', op: 'eq', value: true },
+      goalText: 'Show where the car would go if its velocity never changed.',
+      explain: 'The ghost goes straight off the road. The real car turned, so its direction changed, so its velocity changed, even though the speedometer never moved.',
+      hint: 'Use the switch under the picture.'
+    });
+    C('turn', 4, 'velocity', 'turning-velocity', {
+      type: 'mc', difficulty: 2,
+      prompt: 'A runner goes around a track at exactly 6 ft/s. How often does her direction change?',
+      diagram: dg('ghost', { scenario: 'circle', speed: 6, unit: 'ft/s', showGhost: false }, false),
+      after: { showGhost: true },
+      choices: [
+        'Once per lap',
+        'Never',
+        'Only at the finish',
+        'All the time, every step around the curve'
+      ],
+      answer: 3,
+      choiceFeedback: [
+        'Once per lap would be a single turn. Look at the arrow on the runner: it keeps swinging round the whole way.',
+        'Never would be a straight line. On the curve the arrow points a new way at every moment.',
+        'The finish is not special. She is turning at every point of the track.',
+        'Right. The arrow on the runner keeps swinging round as she goes along the curve, so her direction is always changing.'
+      ],
+      explain: 'Look at the arrow on the runner: it swings round a little more at every step. When the ghost keeps her velocity, it flies off in a straight line right away. So on a curve the velocity is always changing, even at a steady 6 ft/s.'
+    });
+    C('turn', 5, 'velocity', 'turning-velocity', {
+      type: 'mc', difficulty: 2,
+      prompt: 'Look at the picture: something goes around the corners of a track at a steady speed. On a bus that turns a corner without speeding up, you slide sideways in your seat. Why?',
+      diagram: dg('velocity', { path: 'corners', speed: 6, unit: 'ft/s', showChecklist: true, hide: ['checklist'] }, false),
+      after: { hide: [] },
+      choices: [
+        'The bus sped up',
+        'The bus\'s direction changed, so its velocity changed',
+        'Nothing about the motion changed',
+        'The bus slowed down'
+      ],
+      answer: 1,
+      choiceFeedback: [
+        'Look at the dial: at the corners the needle stays put. The bus did not speed up.',
+        'Right. At a corner the arrow swings to a new direction. A new direction is a new velocity, and that is the change you feel.',
+        'Something did change. The arrow swings at each corner, so the direction, and the velocity, changed.',
+        'The dial does not drop at the corners. The speed stays the same.'
+      ],
+      explain: 'Look at the picture: at each corner the needle stays put, but the arrow swings to a new direction. The speed is the same and the direction changed, so the velocity changed. A bus turning a corner changes its velocity, and that change is what you feel as the slide.'
+    });
+    C('turn', 6, 'velocity', 'turning-velocity', {
+      type: 'short', difficulty: 2,
+      prompt: 'Use the ghost ball to explain why the ball did not have a constant velocity.',
+      diagram: dg('ghost', { scenario: 'bounce', speed: 25, unit: 'ft/s', showGhost: true }, false),
+      short: {
+        modelAnswer: 'The ghost ball keeps going the same way, but the real ball bounced and came back the other way. Its direction changed, so its velocity was not constant, even though its speed stayed 25 ft/s.',
+        keyIdeas: [
+          { id: 'dir', text: 'says the direction changed', keywords: ['direction', 'turned around', 'bounced back', 'bounced', 'other way', 'opposite', 'flipped', 'came back', 'went back', 'reversed', 'turned'] },
+          { id: 'ghost', text: 'compares with the ghost', keywords: ['ghost', 'kept going', 'keep going', 'through the wall', 'would have', 'past the wall', 'same way'] }
+        ],
+        need: 1, exampleRequired: false
+      },
+      explain: 'The ghost ball shows what a constant velocity looks like: it keeps going the same way. The real ball came back, so its direction changed. A changed direction means a changed velocity.\n' + VEL
+    });
+
+    /* ---------------- chain rate: what is changing, and how fast ---------------- */
+    var RATE = { speedA: 10, v0B: 0, aB: 2, unit: 'm/s', seconds: 6 };
+    function rates(extra) { var p = {}, k; for (k in RATE) { p[k] = RATE[k]; } for (k in extra) { p[k] = extra[k]; } return p; }
+    C('rate', 1, 'speed', 'rate-of-motion', {
+      type: 'mc', difficulty: 1,
+      prompt: 'Watch both cars. Which of them are changing position?',
+      diagram: dg('rates', rates({ lanes: 'both', focus: null, hide: ['rows'] }), false),
+      after: { hide: [], focus: 'position' },
+      choices: ['Only Car A', 'Only Car B', 'Both', 'Neither'],
+      answer: 2,
+      choiceFeedback: [
+        'Car A is moving, but so is Car B. Look at the marker under each road: both slide along their rulers.',
+        'Car B is moving, but so is Car A. Look at the marker under each road: both slide along their rulers.',
+        'Right. Both markers slide along their rulers and both position numbers keep growing.',
+        'Both position numbers keep growing and both markers slide along the rulers, so both cars change position.'
+      ],
+      explain: 'Look at the two rulers. The marker under each car slides along as the clock runs, and each position number keeps growing. Both cars change position, even though one is cruising and one is speeding up.\n' + MOT
+    });
+    C('rate', 2, 'speed', 'rate-of-motion', {
+      type: 'mc', difficulty: 1,
+      prompt: 'Now watch the speedometers. Which car\'s needle is moving?',
+      diagram: dg('rates', rates({ lanes: 'both', focus: null, hide: ['rows'] }), false),
+      after: { hide: [], focus: 'speed' },
+      choices: ['Only Car A', 'Both', 'Neither', 'Only Car B'],
+      answer: 3,
+      choiceFeedback: [
+        'Car A\'s needle stays at 10 the whole time. Car A cruises at a steady speed.',
+        'Only one of them. Car A\'s needle stays put at 10, so its speed is not changing.',
+        'Car B\'s needle climbs up from 0, so its speed is changing.',
+        'Right. Car B\'s needle climbs, so its speed is changing. Car A\'s needle stays at 10.'
+      ],
+      explain: 'Look at the two dials. Car A\'s needle stays at 10 m/s, so its speed is not changing. Car B\'s needle keeps climbing, so its speed is changing. Both cars change position, but only Car B changes its speed.'
+    });
+    C('rate', 3, 'speed', 'rate-of-motion', {
+      type: 'mc', difficulty: 1,
+      prompt: 'Watch Car A. Motion is a change in position. How fast an object\'s position changes is called its ___.',
+      diagram: dg('rates', rates({ lanes: 'A', focus: null, hide: ['rows'] }), false),
+      after: { hide: [], focus: 'position' },
+      choices: ['acceleration', 'velocity', 'speed', 'distance'],
+      answer: 2,
+      choiceFeedback: [
+        'Acceleration is how fast the speed changes. Car A\'s speed never changes, but its position does.',
+        'Velocity is speed with a direction. This question is about how fast the position changes.',
+        'Right. Car A\'s position changes 10 m every second. That rate is its speed.',
+        'Distance is how far, with no time in it. A rate needs the time too.'
+      ],
+      explain: 'Look at Car A. Its needle stays at 10, and its position goes up 10 m every second: 10, 20, 30, and on. The car never speeds up, but its position keeps changing. How fast the position changes is its speed, so the rate of change of motion is speed.\n' + MOT
+    });
+    C('rate', 4, 'speed', 'rate-of-motion', {
+      type: 'mc', difficulty: 1,
+      prompt: 'Watch Car B. How fast an object\'s speed changes is called its ___.',
+      diagram: dg('rates', rates({ lanes: 'B', focus: null, hide: ['rows'] }), false),
+      after: { hide: [], focus: 'speed' },
+      choices: ['speed', 'position', 'acceleration', 'distance'],
+      answer: 2,
+      choiceFeedback: [
+        'Speed is how fast the position changes. Car B\'s needle is moving, so its speed itself is changing.',
+        'Position is where the car is. How fast the speed changes is a different thing.',
+        'Right. Car B\'s needle climbs 2 m/s every second. The rate its speed changes is its acceleration.',
+        'Distance is how far. It does not tell how fast the speed changes.'
+      ],
+      explain: 'Look at Car B\'s dial. The needle climbs 2 m/s every second: 0, 2, 4, 6, and on. The speed itself is changing, and how fast the speed changes is the acceleration.\n' + ACC
+    });
+
+    /* ---------------- chain avg: average speed ---------------- */
+    var AVG = { segments: [{ d: 60, t: 1 }, { d: 60, t: 3 }], dUnit: 'km', tUnit: 'h' };
+    function avg(extra) { var p = {}, k; for (k in AVG) { p[k] = AVG[k]; } for (k in extra) { p[k] = extra[k]; } return p; }
+    C('avg', 1, 'speed', 'average-speed', {
+      type: 'mc', difficulty: 2,
+      prompt: 'This car drives 60 km fast, then 60 km slowly. A steady car leaves at the same time and arrives at the same time. How fast does the steady car go?',
+      diagram: dg('average', avg({ showGhost: false, hide: ['calc'] }), false),
+      after: { showGhost: true, hide: [] },
+      choices: ['60 km/h', '40 km/h', '30 km/h', '20 km/h'],
+      answer: 2,
+      choiceFeedback: [
+        '60 km/h is the fast part only. The car spent 3 of its 4 hours going slowly.',
+        '40 is the middle of 60 and 20, but the car spent 3 hours going slow and only 1 hour going fast.',
+        'Right. The car goes 120 km in 4 hours, and 120 ÷ 4 = 30 km/h.',
+        '20 km/h is the slow part only. The car also drove 1 hour at 60 km/h, so the steady speed has to be higher than 20.'
+      ],
+      explain: 'Watch the two cars. The real car races off at 60 km/h, then crawls at 20 km/h for three hours. The steady car goes one speed all the way and arrives at the same moment. Together the real car covers 120 km in 4 hours, and 120 ÷ 4 = 30 km/h.',
+      hint: 'Add up all the distance and all the time first.'
+    });
+    C('avg', 2, 'speed', 'average-speed', {
+      type: 'blank', difficulty: 1,
+      prompt: 'Fill in the blank from the word bank.',
+      text: 'The steady car\'s speed is called the ___ speed of the trip.',
+      diagram: dg('average', avg({ showGhost: true, hide: ['calc'] }), false),
+      after: { hide: [] },
+      bank: ['average', 'constant', 'top', 'total'],
+      answer: ['average'],
+      explain: 'Look at the steady car: it covers all 120 km in all 4 hours at one speed, 30 km/h. One steady speed that covers the same total distance in the same total time is the average speed. You find it with total distance ÷ total time.',
+      hint: 'It starts with a.'
+    });
+    C('avg', 3, 'speed', 'average-speed', {
+      type: 'short', difficulty: 2,
+      prompt: 'Why is the average speed not 40 km/h?',
+      diagram: dg('average', avg({ showGhost: true, hide: [] }), false),
+      short: {
+        modelAnswer: 'Because the car spent 3 hours going slowly and only 1 hour going fast. The average speed is the total distance ÷ the total time: 120 km ÷ 4 h = 30 km/h, not the middle of 60 and 20.',
+        keyIdeas: [
+          { id: 'time', text: 'says the car spent more time going slowly', keywords: ['more time', '3 hours', 'three hours', 'longer', 'slow part took', 'slow part', 'slower for', 'longer time', 'most of the time'] },
+          { id: 'total', text: 'uses total distance and total time', keywords: ['total distance', 'total time', '120', '4 hours', 'four hours', 'divide', 'divided', 'all the distance', 'all the time'] }
+        ],
+        need: 1, exampleRequired: false
+      },
+      explain: 'Look at the two legs: 60 km in 1 hour, then 60 km in 3 hours. The car spent most of its time going slowly, so the average is pulled toward 20. All the distance divided by all the time is 120 ÷ 4 = 30 km/h.'
     });
   })();
 
