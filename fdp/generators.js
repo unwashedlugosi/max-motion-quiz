@@ -441,6 +441,104 @@
     ]);
   };
 
+  /* ================= chains: the teacher's board format (given one form, write the other two) ================= */
+  const CHAIN_POOL = {
+    1: [rat(1, 2), rat(1, 4), rat(3, 4), rat(1, 5), rat(2, 5), rat(3, 5), rat(4, 5), rat(1, 8), rat(3, 8), rat(5, 8), rat(7, 8), rat(3, 10), rat(7, 20), rat(9, 25), rat(3, 50), rat(11, 20), rat(17, 25)],
+    2: [rat(1, 3), rat(2, 3), rat(1, 6), rat(5, 6), rat(2, 9), rat(4, 9), rat(7, 9), rat(1, 11), rat(5, 12), rat(7, 5), rat(9, 4), rat(5, 4), rat(3, 2), rat(11, 8), rat(13, 10)],
+    3: [rat(33, 400), rat(1, 250), rat(1, 400), rat(1, 200), rat(3, 400), rat(1, 8), rat(3, 8), rat(63, 8), rat(49, 8), rat(51, 50), rat(19, 8), rat(10, 3), rat(7, 900), rat(5, 3), rat(27, 400)],
+  };
+  const fdpStr = { f: (v) => toMixed(v), d: (v) => vstr(v), p: (v) => vstr(mul(v, rat(100))) + '%' };
+  G['chain'] = (r, seed) => {
+    const pick = (a) => a[Math.floor(r() * a.length)];
+    const level = pick([1, 2, 2, 3, 3]);
+    const v = pick(CHAIN_POOL[level]);
+    const p = mul(v, rat(100));
+    const rep = !M.terminates(v);
+    let start = pick(['f', 'd', 'p']);
+    if (level === 3 && r() < 0.6) start = 'p';
+    if (rep && start === 'd' && r() < 0.5) start = 'f';
+    const order = { p: ['d', 'f'], f: ['d', 'p'], d: ['f', 'p'] }[start];
+    const NAME = { f: 'fraction (F)', d: 'decimal (D)', p: 'percent (P)' };
+    const fracPct = !isInt(p) && M.terminates(p) && r() < 0.6 && /\.(25|5|75|4|2|125|375|625|875)$/.test(toDec(p) || '');
+    const shown = { f: fracMk(v), d: decMk(v), p: (fracPct ? fracMk(p) : decMk(p)) + '%' };
+    const ans = { d: num(vstr(v), 'decimal'), f: num(toFrac(v), 'fraction'), p: num(vstr(p), 'percent') };
+    const errsFor = (k, from) => {
+      const e = [];
+      if (k === 'd') {
+        if (from === 'p') {
+          e.push({ value: vstr(mul(v, rat(10))), misconception: 'pct-shift-one-place', feedback: 'That is one hop. Percent to decimal is &divide; 100: two places left.' });
+          e.push({ value: vstr(mul(p, rat(100))), misconception: 'pct-shift-wrong-way', feedback: 'That moved the point right. Percent to decimal goes LEFT two places.' });
+          if (M.cmp(p, rat(1)) < 0) e.push({ value: vstr(p), misconception: 'pct-small-as-whole', feedback: shown.p + ' is less than 1%. The % still means &divide; 100.' });
+        } else if (v.d <= 99n && v.n < v.d) e.push({ value: v.n + '.' + v.d, misconception: 'bar-as-point', feedback: 'The fraction bar is not a decimal point: ' + fracMk(v) + ' means ' + v.n + ' &divide; ' + v.d + '.' });
+        if (rep) e.push({ value: M.toFixed(v, 2), misconception: 'repeating-truncate', feedback: 'That decimal stops. This one repeats forever: use the repeat bar.' });
+      }
+      if (k === 'f') {
+        if (from === 'd') {
+          e.push({ value: toFrac(mul(v, rat(10))), misconception: 'denominator-places', feedback: 'Count the decimal places: that sets the power of ten on the bottom.' });
+          e.push({ value: toFrac(div(v, rat(10))), misconception: 'denominator-places', feedback: 'Count the decimal places again: one zero on the bottom for each place.' });
+        } else {
+          e.push({ value: toFrac(mul(v, rat(10))), misconception: 'pct-shift-one-place', feedback: 'Percent means over 100, not over 10.' });
+          e.push({ value: toFrac(p), misconception: 'pct-small-as-whole', feedback: 'You dropped the %. ' + shown.p + ' means ' + decMk(p) + ' out of 100.' });
+        }
+      }
+      if (k === 'p') {
+        e.push({ value: vstr(mul(v, rat(10))), misconception: 'pct-shift-one-place', feedback: 'That is &times; 10. Decimal to percent is &times; 100: two places right.' });
+        e.push({ value: vstr(v), feedback: 'That is the decimal with a % sign. Multiply by 100 first.' });
+        if (rep) e.push({ value: M.toFixed(p, 1), misconception: 'repeating-truncate', feedback: 'That stops. The percent repeats too: use the repeat bar, or a mixed number like ' + fracMk(p) + '%.' });
+      }
+      return e;
+    };
+    const HOW = {
+      'p>d': 'Percent to decimal: &divide; 100, the point hops two places left.', 'd>f': 'Decimal to fraction: read the place value of the last digit, then simplify.',
+      'f>d': 'Fraction to decimal: top &divide; bottom' + (rep ? '; when a remainder repeats, the digits repeat.' : '.'), 'd>p': 'Decimal to percent: &times; 100, the point hops two places right.',
+      'f>p': 'Fraction to percent: make it a decimal, then &times; 100.', 'p>f': 'Percent to fraction: over 100, then simplify.',
+    };
+    const known = { f: '?', d: '?', p: '?' };
+    known[start] = fdpStr[start](v);
+    const steps = order.map((k, i) => {
+      const from = i === 0 ? start : order[0];
+      const fig = { type: 'fdp', f: known.f, d: known.d, p: known.p, focus: k };
+      const st = {
+        say: (i === 0 ? 'Start at ' + start.toUpperCase() + ': ' + shown[start] + '. ' : 'Now ') + HOW[from + '>' + k],
+        figure: fig,
+        ask: ask(NAME[k].replace(/^./, (c) => c.toUpperCase()) + (k === 'f' ? ' in simplest form' : '') + ' = ?', ans[k], HOW[from + '>' + k], 'It is ' + (k === 'f' ? fracMk(v) : k === 'd' ? decMk(v) : pctStr(p)) + '.', errsFor(k, from)),
+      };
+      known[k] = fdpStr[k](v);
+      return st;
+    });
+    const skill = rep ? 'repeating' : (start === 'p' && order[0] === 'd') || (start === 'd' && order[1] === 'p') ? 'pct-dec' : start === 'p' ? 'pct-frac' : 'frac-dec';
+    const it = finish('chain', seed, level, 'Fill in the other two corners. Given ' + start.toUpperCase() + ' = ' + shown[start] + ': write ' + order[0].toUpperCase() + ', then ' + order[1].toUpperCase() + '.', ans[order[1]], errsFor(order[1], order[0]), 'Go around the triangle one corner at a time.', steps);
+    it.skill = skill;
+    it.chain = true;
+    return it;
+  };
+
+  /* ================= the Gauntlet: the 12 hardest conversion types ================= */
+  const KINDS = ['terminating', 'repeating', 'non-terminating, non-repeating'];
+  const GAUNT = [
+    () => ['8[[f:1/4]]% as a fraction in simplest form', num('33/400', 'fraction'), [{ value: '33/40', misconception: 'pct-shift-one-place', feedback: 'Over 100, not 10: 8.25% = 0.0825.' }, { value: '81/400', misconception: 'frac-part-as-decimal', feedback: '[[f:1/4]] is 0.25, not 0.1: 8[[f:1/4]]% = 8.25%.' }], '8[[f:1/4]]% = 8.25% = 0.0825 = [[f:825/10000]], then simplify.'],
+    () => ['[[f:2/5]]% as a fraction in simplest form', num('1/250', 'fraction'), [{ value: '2/5', misconception: 'pct-small-as-whole', feedback: '[[f:2/5]]% is less than 1%: divide by 100 too.' }, { value: '1/25', misconception: 'pct-shift-one-place', feedback: 'Over 100, not 10.' }], '[[f:2/5]]% = 0.4% = 0.004 = [[f:4/1000]] = [[f:1/250]].'],
+    () => ['[[m:7 7/8]] as a percent', num('787.5', 'percent'), [{ value: '7.875', misconception: 'pct-small-as-whole', feedback: 'That is the decimal. Times 100 for the percent.' }, { value: '78.75', misconception: 'pct-shift-one-place', feedback: 'Two places right, not one.' }], '[[m:7 7/8]] = 7.875, &times; 100 = 787.5%.'],
+    () => ['[[m:6 125/1000]] as a percent (simplify on the way: [[m:6 1/8]])', num('612.5', 'percent'), [{ value: '6.125', feedback: 'That is the decimal. Times 100.' }, { value: '61.25', misconception: 'pct-shift-one-place', feedback: 'Two places right, not one.' }], '[[m:6 125/1000]] = [[m:6 1/8]] = 6.125 = 612.5%.'],
+    () => ['[[m:1 2/100]] as a percent', num('102', 'percent'), [{ value: '1.02', feedback: 'That is the decimal. Times 100.' }, { value: '120', misconception: 'placeholder-zero', feedback: '[[f:2/100]] is 0.02, so [[m:1 2/100]] = 1.02, not 1.2.' }, { value: '12', misconception: 'placeholder-zero', feedback: '1 whole is 100% by itself.' }], '[[m:1 2/100]] = 1.02 = 102%.'],
+    () => ['What kind of decimal is [[f:3/14]]?', { type: 'choice', choices: KINDS, correct: 1 }, [{ choice: 0, misconception: 'decimal-kind', feedback: '14 = 2 &times; 7. The 7 makes it repeat.' }, { choice: 2, misconception: 'decimal-kind', feedback: 'Every fraction stops or repeats.' }], '14 has a factor of 7, so [[f:3/14]] = [[r:0.2(142857)]] repeats.'],
+    () => ['[[f:1/6]] as a decimal, bar in the right place', num('0.1(6)', 'decimal'), [{ value: '0.(16)', misconception: 'bar-placement', feedback: 'Only the 6 repeats: 0.1666…' }, { value: '0.17', misconception: 'repeating-truncate', feedback: 'That is rounded. Use the bar.' }], '[[f:1/6]] = 0.1666… = [[r:0.1(6)]].'],
+    () => ['What kind of decimal is 0.087621134…% (the digits never settle into a pattern)?', { type: 'choice', choices: KINDS, correct: 2 }, [{ choice: 1, misconception: 'decimal-kind', feedback: 'A long decimal is not automatically repeating: there is no block that repeats.' }, { choice: 0, misconception: 'decimal-kind', feedback: 'The … means it keeps going.' }], 'It never ends and never repeats: non-terminating, non-repeating.'],
+    () => ['[[f:7/5]] as a percent', num('140', 'percent'), [{ value: '1.4', feedback: 'That is the decimal. Times 100.' }, { value: '14', misconception: 'pct-shift-one-place', feedback: 'Two places right: 1.4 → 140%.' }, { value: '75', misconception: 'bar-as-point', feedback: 'That is 5 &divide; 7 flipped. Top &divide; bottom: 7 &divide; 5.' }], '[[f:7/5]] = 1.4 = 140%.'],
+    () => ['Put in order from least to greatest.', { type: 'order', items: ['[[f:3/8]]', '0.38', '37%', '[[r:0.(3)]]', '[[r:0.3(8)]]'], correct: [3, 2, 0, 1, 4] }, [{ order: [1, 2, 0, 3, 4], misconception: 'longer-larger', feedback: 'Turn them all into decimals and compare place by place.' }], '[[r:0.(3)]] = 0.333…, 37% = 0.37, [[f:3/8]] = 0.375, 0.38, [[r:0.3(8)]] = 0.3888…'],
+    () => ['Which is greater: 10.07 or 10.70?', { type: 'choice', choices: ['10.07', '10.70', 'They are equal'], correct: 1 }, [{ choice: 2, misconception: 'placeholder-zero', feedback: 'The 0 in 10.07 holds the tenths place.' }, { choice: 0, misconception: 'placeholder-zero', feedback: 'Tenths first: 0 tenths vs 7 tenths.' }], 'Tenths decide: 0 &lt; 7, so 10.70 is greater.'],
+    () => ['Your calculator shows 0.6666666667 for [[f:2/3]]. Write the exact decimal with the bar.', num('0.(6)', 'decimal'), [{ value: '0.67', misconception: 'repeating-truncate', feedback: 'That is rounded. The exact value repeats: use the bar.' }, { value: '0.6666666667', misconception: 'repeating-truncate', feedback: 'The calculator rounded its last digit. The 6s go on forever.' }], 'The display rounds the last digit. [[f:2/3]] = [[r:0.(6)]].'],
+  ];
+  G['gaunt'] = (r, seed) => {
+    const i = ((seed - 1) % GAUNT.length + GAUNT.length) % GAUNT.length;
+    const [prompt, answer, errors, why] = GAUNT[i]();
+    const P = /\?$|\.$/.test(prompt) ? prompt : 'Write ' + prompt + '.';
+    const it = finish('gaunt', seed, 3, P, answer, errors, why, [{ say: why, ask: ask(P, answer, 'Go one step at a time.', why, errors) }]);
+    it.skill = [ 'pct-frac', 'pct-frac', 'pct-dec', 'pct-dec', 'pct-dec', 'repeating', 'repeating', 'repeating', 'pct-dec', 'compare-mixed', 'place-value', 'repeating' ][i];
+    return it;
+  };
+  const gauntletIds = () => GAUNT.map((x, i) => 'g:gaunt:' + (i + 1));
+
   const SKILLS = Object.keys(G);
   function make(skill, seed) {
     if (!G[skill]) return null;
@@ -452,7 +550,13 @@
     const m = /^g:([a-z-]+):(\d+)$/.exec(String(id));
     return m ? make(m[1], +m[2]) : null;
   }
-  const api = { make, fromId, skills: SKILLS };
+  /** An item of a given level when the generator can make one (tries a few seeds). */
+  function makeLevel(skill, level, seed) {
+    let last = null;
+    for (let k = 0; k < 40; k++) { const it = make(skill, seed + k * 7919); if (!it) return null; last = it; if (!level || it.level === level) return it; }
+    return last;
+  }
+  const api = { make, makeLevel, fromId, gauntletIds, skills: SKILLS.filter((x) => x !== 'gaunt'), conversionSkills: ['place-value', 'pct-dec', 'frac-dec', 'pct-frac', 'repeating', 'compare-mixed'] };
   root.FDPGen = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

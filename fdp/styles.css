@@ -549,3 +549,28 @@ b, strong { font-weight: 700; }
 .labelchips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .labelchips-k { font-family: var(--font-hand); font-size: 1.1rem; color: var(--ink-soft); }
 .lchip { font-family: var(--font-hand); font-weight: 400; font-size: 1.15rem; }
+.chip-calc { border-color: var(--ink); color: var(--ink); font-size: .98rem; }
+
+/* ---------- conversion mastery ---------- */
+.mastery-card { display: grid; gap: 10px; padding: 14px 16px; background: var(--card); border: 2.5px solid var(--ink); border-radius: var(--hand-radius); box-shadow: var(--pen-shadow); }
+.home-side > .mastery-card { grid-column: 1 / -1; }
+.mastery-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.mlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 2px 0; border-bottom: 1px dashed var(--grid); }
+.mmeter { display: inline-flex; gap: 4px; }
+.mmeter i { width: 18px; height: 18px; border: 2px solid var(--ink-soft); border-radius: 4px 5px 3px 6px; background: var(--card); }
+.mmeter i.on { background: var(--hl); border-color: var(--ink); }
+.mmeter.is-done i { background: var(--ok); border-color: var(--ok); }
+.timed-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 600px) { .timed-row { grid-template-columns: 1fr; } .mrow { grid-template-columns: minmax(0, 1fr) auto; } .mrow .btn { grid-column: 1 / -1; justify-self: start; } }
+.expert-badge { display: inline-block; padding: 4px 12px; font-family: var(--font-hand); font-size: 1.3rem; color: var(--on-hl); background: var(--hl); border: 2px solid var(--ink); border-radius: 999px; transform: rotate(-2deg); }
+.thist { display: grid; gap: 4px; }
+.thist-list { margin: 0; padding-left: 1.6em; display: grid; gap: 2px; font-variant-numeric: tabular-nums; }
+.thist-list li span { display: inline-block; min-width: 4.5em; }
+.thist-list li.is-pass { font-weight: 700; color: var(--ok); }
+.chip-chain { border-color: var(--d); color: var(--d); }
+.chainscreen .chain-host { max-width: 760px; }
+.savecard { display: grid; gap: 6px; padding: 12px 16px; border: 2px solid var(--ink-soft); border-radius: var(--hand-radius); background: var(--card); }
+.savecode { font-size: 1.05rem; font-weight: 700; color: var(--ink); background: var(--hl-soft); padding: 2px 6px; border-radius: 4px; }
+.savecard .sync { font-size: .92rem; }
+.sync[data-state="saved"] { color: var(--ok); }

@@ -436,6 +436,8 @@
       const diff = sub(X, target);
       const tol = rat(1, pow10(Math.max(1, p.decimals)));
       if (cmp(rat(babs(diff.n), diff.d), tol) < 0) {
+        // a long calculator display (0.4545454545) is the right idea, written without the bar
+        if (p.kind === 'dec' && p.decimals >= 6) return { status: 'form', misc: 'repeating-truncate', msg: 'That is what a calculator shows. The display stops, but the real number keeps repeating: write it with the repeat bar over the digits that repeat.' };
         return { status: 'wrong', auto: 'repeating-truncate' };
       }
     }

@@ -1,8 +1,10 @@
 /* store.js — persistence for Max's F/D/P Test Prep (design ported from Max's Motion Test Prep).
  *
- * Two modes, chosen by window.FDP_CONFIG (config.js):
- *   local (supabaseUrl or supabaseAnonKey empty): the whole progress blob lives in localStorage.
- *   cloud (both set): Supabase over its REST API (PostgREST, plain fetch, no SDK) is the source of truth.
+ * Three modes, chosen by window.FDP_CONFIG (config.js):
+ *   local    (backend ''): the whole progress blob lives in localStorage.
+ *   jsonblob (backend 'jsonblob'): a no-account JSON document store (POST/GET/PUT {base}/api/jsonBlob[/id]).
+ *            The practice code IS the blob id. See the jsonblob section at the end of this file.
+ *   supabase (backend 'supabase', or url + key set): Supabase over its REST API (PostgREST, plain fetch, no SDK).
  *       Identity is a "practice code" (no login): it sits in the URL hash and is remembered on the device.
  *       localStorage holds the code, a cache of the last known progress (so the app opens offline), and an
  *       outbox of writes that have not reached the server yet.
@@ -24,14 +26,16 @@
   const cfg = (window.FDP_CONFIG && typeof window.FDP_CONFIG === 'object') ? window.FDP_CONFIG : {};
   const URL0 = typeof cfg.supabaseUrl === 'string' ? cfg.supabaseUrl.trim().replace(/\/+$/, '') : '';
   const KEY = typeof cfg.supabaseAnonKey === 'string' ? cfg.supabaseAnonKey.trim() : '';
-  const CLOUD = !!(URL0 && KEY);
+  const BACKEND = cfg.backend === 'jsonblob' ? 'jsonblob' : (cfg.backend === 'supabase' || (!cfg.backend && URL0 && KEY)) && URL0 && KEY ? 'supabase' : '';
+  const CLOUD = BACKEND === 'supabase';
 
   const KEY_LOCAL = 'maxFdpPrep.v1';                // local-only mode: whole progress blob
   const KEY_CODE = 'maxFdpPrep.code';               // practice code remembered on this device
   const KEY_CACHE = 'maxFdpPrep.cache.';            // + code: last known merged progress
   const KEY_OUTBOX = 'maxFdpPrep.outbox.';          // + code: { dirty, events: [] }
   const KEY_DEVICE = 'maxFdpPrep.device';
-  const CODE_RE = /^[a-z0-9-]{4,40}$/;
+  const KEY_MIGRATED = 'maxFdpPrep.migrated.';     // + code: on-device (local-only) progress already folded in
+  const CODE_RE = /^[a-z0-9-]{4,64}$/;
   const LOAD_TIMEOUT = 6000, REQ_TIMEOUT = 12000;
   const BACKOFF = [2000, 5000, 15000, 30000];
   const DEBOUNCE = 1200;
@@ -63,16 +67,22 @@
     mockB: null,
     recent: [],        // misses: [{ t, item, skill, given, misc, mode }]  (last 40)
     runs: {},          // { kind: { t, n, ok } } counts of car rides, mixed sets, morning sessions
+    mastery: {},       // conversion mastery: { skill: { t, streak, l3, best, mastered } }
+    cdiag: null,       // conversion check-in: { t, items:[ids], idx, ans, done }
+    speed: null,       // speed rounds: { t, history: [{ at, ms, score, of }], cur: { items, ans, startedAt } }
+    gauntlet: null,    // { t, history: [{ at, misses, cleared, ms }], cur }
+    section: null,     // 9-question section tests, same shape as speed
+    conv: null,        // { t, sinceRecheck, expertAt }
   });
   let data = fresh();
-  const listeners = { status: [], data: [] };
+  const listeners = { status: [], data: [], code: [] };
   const emit = (k, a) => listeners[k].slice().forEach((f) => { try { f(a); } catch (e) { console.error(e); } });
 
   function normalize(d) {
     const f = fresh();
     if (!d || typeof d !== 'object') return f;
     const o = Object.assign(f, d);
-    ['time', 'hist', 'miscLog', 'items', 'lessons', 'runs'].forEach((k) => { if (!o[k] || typeof o[k] !== 'object' || Array.isArray(o[k])) o[k] = {}; });
+    ['time', 'hist', 'miscLog', 'items', 'lessons', 'runs', 'mastery'].forEach((k) => { if (!o[k] || typeof o[k] !== 'object' || Array.isArray(o[k])) o[k] = {}; });
     if (!Array.isArray(o.recent)) o.recent = [];
     return o;
   }
@@ -94,8 +104,8 @@
       out.time = Object.assign({}, newer.time);
     }
     const newerRec = (x, y) => { const xl = x && live(x.t), yl = y && live(y.t); if (!xl) return yl ? y : null; if (!yl) return x; return (+y.t || 0) > (+x.t || 0) ? y : x; };
-    ['diag', 'plan', 'mockA', 'mockB', 'morning'].forEach((k) => { out[k] = newerRec(a[k], b[k]); });
-    ['items', 'lessons', 'runs'].forEach((k) => {
+    ['diag', 'plan', 'mockA', 'mockB', 'morning', 'cdiag', 'speed', 'gauntlet', 'section', 'conv'].forEach((k) => { out[k] = newerRec(a[k], b[k]); });
+    ['items', 'lessons', 'runs', 'mastery'].forEach((k) => {
       new Set([...Object.keys(a[k]), ...Object.keys(b[k])]).forEach((id) => { const r = newerRec(a[k][id], b[k][id]); if (r) out[k][id] = r; });
     });
     new Set([...Object.keys(a.hist), ...Object.keys(b.hist)]).forEach((sk) => {
@@ -275,9 +285,20 @@
     const ok = await serial(async () => {
       try { await pull((o && o.timeout) || LOAD_TIMEOUT); return true; } catch (err) { if (c === code) failed = true; return false; }
     });
+    // One time per code: progress made in local-only mode (before the database existed) is folded in and uploaded.
+    if (!ls.get(KEY_MIGRATED + c)) {
+      const old = lsJson(KEY_LOCAL);
+      if (old && typeof old === 'object' && (old.diag || Object.keys(old.hist || {}).length || old.mockA)) {
+        data = merge(data, old);
+        outbox.dirty = (outbox.dirty || 0) + 1;
+        outbox.events.push({ code: c, kind: 'migrated', payload: { from: 'this device' }, at: new Date().toISOString() });
+        saveCache(); saveOutbox();
+      }
+      ls.set(KEY_MIGRATED + c, '1');
+    }
     if (!ok) scheduleRetry();
     pushStatus();
-    if (ok && pendingCount()) sync();
+    if (pendingCount()) { if (ok) sync(); }
     return { online: ok };
   }
   function refresh() {
@@ -331,8 +352,232 @@
     });
   }
 
+  /* =====================================================================
+   * jsonblob backend
+   *   POST {base}/api/jsonBlob        -> 201, Location: .../api/jsonBlob/<id>  (also X-jsonblob-id)
+   *   GET  {base}/api/jsonBlob/<id>   -> the document
+   *   PUT  {base}/api/jsonBlob/<id>   -> replace the document
+   * Document: { v: 1, app: 'max-fdp', progress: <blob>, events: [{ id, at, kind, payload }] (last 3000) }
+   * localStorage keeps a full mirror (progress + events) and a dirty flag, so nothing is lost when the
+   * network or the service fails. Every failure is soft: retried with backoff, on each load, when the tab
+   * becomes visible again, and when the browser comes back online. The UI never waits for the network.
+   * ===================================================================== */
+  if (BACKEND === 'jsonblob') {
+    const BASE = (typeof cfg.jsonblobBase === 'string' && cfg.jsonblobBase.trim() ? cfg.jsonblobBase.trim() : 'https://jsonblob.com').replace(/\/+$/, '');
+    const EP = BASE + '/api/jsonBlob';
+    const KEY_EVENTS = 'maxFdpPrep.events.';        // + code or 'local': event mirror
+    const KEY_DIRTY = 'maxFdpPrep.dirty.';           // + code or 'local'
+    const EV_MAX = 3000, JB_DEBOUNCE = 3000, JB_BACKOFF = [3000, 10000, 30000, 60000];
+    let events = [];
+    let dirty = 0, jbFailed = false, jbBusy = false, jbTimer = null, jbDebounce = null, jbBackoff = 0, lastFetchJ = 0, lastSaved = 0, jbGen = 0;
+    const slot = () => code || 'local';
+    const saveMirror = () => {
+      if (code) ls.set(KEY_CACHE + code, JSON.stringify(data)); else ls.set(KEY_LOCAL, JSON.stringify(data));
+      ls.set(KEY_EVENTS + slot(), JSON.stringify(events));
+      if (dirty) ls.set(KEY_DIRTY + slot(), String(dirty)); else ls.del(KEY_DIRTY + slot());
+    };
+    const loadMirror = () => {
+      data = normalize(lsJson(code ? KEY_CACHE + code : KEY_LOCAL));
+      const ev = lsJson(KEY_EVENTS + slot());
+      events = Array.isArray(ev) ? ev : [];
+      dirty = +(ls.get(KEY_DIRTY + slot()) || 0);
+    };
+    const mergeEvents = (a, b) => {
+      const m = new Map();
+      [].concat(a || [], b || []).forEach((e) => { if (e && e.id) m.set(e.id, e); });
+      return Array.from(m.values()).sort((x, y) => String(x.at).localeCompare(String(y.at))).slice(-EV_MAX);
+    };
+    const doc = () => ({ v: 1, app: 'max-fdp', updatedAt: new Date().toISOString(), progress: data, events });
+    async function jfetch(method, url, body, opts) {
+      const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+      const to = ctl ? setTimeout(() => ctl.abort(), (opts && opts.timeout) || REQ_TIMEOUT) : null;
+      try {
+        const init = { method, cache: 'no-store', headers: { Accept: 'application/json' }, signal: ctl ? ctl.signal : undefined };
+        if (body !== undefined) { init.body = JSON.stringify(body); init.headers['Content-Type'] = 'application/json'; }
+        if (opts && opts.keepalive) init.keepalive = true;
+        const res = await fetch(url, init);
+        if (!res.ok) { const e = new Error('HTTP ' + res.status); e.status = res.status; throw e; }
+        return res;
+      } finally { if (to) clearTimeout(to); }
+    }
+    /** Parse a JSON body; an HTML error page (e.g. a 403 from a proxy) is a soft failure, not a crash. */
+    async function readDoc(res) {
+      const txt = await res.text();
+      let j;
+      try { j = JSON.parse(txt); } catch (e) { const er = new Error('not JSON'); er.soft = true; throw er; }
+      if (!j || typeof j !== 'object') { const er = new Error('empty'); er.soft = true; throw er; }
+      return j;
+    }
+    function jStatus() {
+      if (!code) return 'offline';
+      if (jbFailed || (typeof navigator !== 'undefined' && navigator.onLine === false)) return 'offline';
+      if (jbBusy || dirty) return 'saving';
+      return lastSaved ? 'saved' : 'saving';
+    }
+    let jLast = '';
+    function jPush(force) { const st = jStatus(); if (force || st !== jLast) { jLast = st; emit('status', st); } }
+    async function create() {
+      const res = await jfetch('POST', EP, doc());
+      let id = res.headers.get('X-jsonblob-id') || res.headers.get('x-jsonblob-id') || '';
+      if (!id) { const loc = res.headers.get('Location') || res.headers.get('location') || ''; id = loc.replace(/\/+$/, '').split('/').pop(); }
+      id = normCode(id);
+      if (!validCode(id)) { const e = new Error('no blob id'); e.soft = true; throw e; }
+      // what was on this device now belongs to the new code
+      code = id;
+      ls.set(KEY_CODE, id);
+      ls.set(KEY_MIGRATED + id, '1');
+      ls.del(KEY_EVENTS + 'local'); ls.del(KEY_DIRTY + 'local');
+      dirty = 0; lastSaved = Date.now(); lastFetchJ = Date.now();
+      saveMirror();
+      setHash(id);
+      emit('code', id);
+    }
+    async function pullJ(timeout) {
+      const g = jbGen;
+      const res = await jfetch('GET', EP + '/' + encodeURIComponent(code), undefined, { timeout });
+      const j = await readDoc(res);
+      if (g !== jbGen) throw new Error('stale');
+      const before = sig(data);
+      const remote = j.progress && typeof j.progress === 'object' ? j.progress : null;
+      data = remote ? merge(data, remote) : normalize(data);
+      const evBefore = events.length;
+      events = mergeEvents(events, j.events);
+      lastFetchJ = Date.now();
+      if (!remote || sig(merge(remote, {})) !== sig(data) || events.length !== (Array.isArray(j.events) ? j.events.length : 0)) dirty = dirty || 1;
+      saveMirror();
+      return sig(data) !== before || events.length !== evBefore;
+    }
+    async function pushJ(keepalive) {
+      const mark = dirty;
+      await jfetch('PUT', EP + '/' + encodeURIComponent(code), doc(), { keepalive });
+      if (dirty === mark) dirty = 0;
+      lastSaved = Date.now();
+      saveMirror();
+    }
+    function jSync(opts) {
+      opts = opts || {};
+      return serial(async () => {
+        const g = jbGen;
+        let changed = false;
+        try {
+          jbBusy = true; jPush();
+          if (!code) await create();
+          else {
+            if (opts.refetch || Date.now() - lastFetchJ > 3000) changed = await pullJ(opts.timeout);
+            if (dirty) await pushJ(false);
+          }
+          jbFailed = false; jbBackoff = 0;
+          if (jbTimer) { clearTimeout(jbTimer); jbTimer = null; }
+        } catch (err) {
+          if (g !== jbGen) return false;
+          jbFailed = true;
+          if (!jbTimer) {
+            const ms = JB_BACKOFF[Math.min(jbBackoff, JB_BACKOFF.length - 1)];
+            jbBackoff++;
+            jbTimer = setTimeout(() => { jbTimer = null; jSync({ refetch: true }); }, ms);
+          }
+        } finally { jbBusy = false; }
+        jPush(true);
+        if (changed && g === jbGen) emit('data');
+        return !jbFailed;
+      });
+    }
+    function jKick() {
+      jPush();
+      if (jbDebounce) clearTimeout(jbDebounce);
+      jbDebounce = setTimeout(() => { jbDebounce = null; if (!jbTimer) jSync(); }, JB_DEBOUNCE);
+    }
+    /** Start on this device right away (from the mirror), then reach the service in the background. */
+    function jOpen(c) {
+      jbGen++;
+      code = c || null;
+      if (code) ls.set(KEY_CODE, code);
+      lastSaved = 0; jbFailed = false; jbBackoff = 0; lastFetchJ = 0;
+      loadMirror();
+      // progress from local-only days is folded in once per code
+      if (code && !ls.get(KEY_MIGRATED + code)) {
+        const old = lsJson(KEY_LOCAL);
+        if (old && typeof old === 'object' && (old.diag || Object.keys(old.hist || {}).length)) { data = merge(data, old); dirty = dirty || 1; }
+        const oldEv = lsJson(KEY_EVENTS + 'local');
+        if (Array.isArray(oldEv) && oldEv.length) { events = mergeEvents(events, oldEv); dirty = dirty || 1; }
+        ls.set(KEY_MIGRATED + code, '1');
+        saveMirror();
+      }
+      jSync({ refetch: true });
+      return Promise.resolve({ online: null });
+    }
+    function jCommit(evs) {
+      (evs || []).forEach((e) => events.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), at: new Date(e.t || Date.now()).toISOString(), kind: e.kind, payload: e.payload }));
+      if (events.length > EV_MAX) events = events.slice(-EV_MAX);
+      dirty = (dirty || 0) + 1;
+      saveMirror();
+      jKick();
+    }
+    function jReset() {
+      const t = Date.now();
+      data = fresh(); data.resetAt = t; data.created = t;
+      events.push({ id: t.toString(36) + 'r', at: new Date(t).toISOString(), kind: 'reset', payload: {} });
+      dirty = (dirty || 0) + 1;
+      saveMirror();
+      return jSync();
+    }
+    async function jLeave() {
+      if (code && dirty && !jbFailed) await Promise.race([jSync(), new Promise((r) => setTimeout(r, 2500))]);
+      jbGen++;
+      if (jbTimer) { clearTimeout(jbTimer); jbTimer = null; }
+      ls.del(KEY_CODE);
+      code = null; data = fresh(); events = []; dirty = 0;
+    }
+    async function jReadForParent(c) {
+      const res = await jfetch('GET', EP + '/' + encodeURIComponent(c));
+      const j = await readDoc(res);
+      return { data: normalize(j.progress), events: (Array.isArray(j.events) ? j.events : []).slice().reverse() };
+    }
+    const flushHidden = () => { if (code && dirty) { try { pushJ(true).catch(() => {}); } catch (e) { /* ignore */ } } };
+    window.addEventListener('online', () => { jbFailed = false; if (jbTimer) { clearTimeout(jbTimer); jbTimer = null; } jSync({ refetch: true }); });
+    window.addEventListener('offline', () => jPush(true));
+    window.addEventListener('pagehide', flushHidden);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') { flushHidden(); return; }
+      if (jbTimer) { clearTimeout(jbTimer); jbTimer = null; }
+      jSync({ refetch: true });
+    });
+    window.FDPStore = {
+      cloud: true, backend: 'jsonblob', deviceId,
+      validCode, normCode, hashCode, setHash, suggestCode,
+      resolveCode() {
+        const hc = hashCode();
+        if (hc) { ls.set(KEY_CODE, hc); return hc; }
+        const saved = normCode(ls.get(KEY_CODE));
+        if (validCode(saved)) { setHash(saved); return saved; }
+        return null;
+      },
+      currentCode: () => code,
+      openLocal() { return jOpen(null).then(() => data); },
+      open: jOpen, refresh() { if (Date.now() - lastFetchJ > REFRESH_MIN_GAP) jSync({ refetch: true }); },
+      commit: jCommit, reset: jReset, leave: jLeave, readForParent: jReadForParent, merge, fresh, normalize,
+      data: () => data,
+      events: () => events,
+      status: jStatus,
+      lastSaved: () => lastSaved,
+      backupJSON: () => JSON.stringify(doc(), null, 1),
+      onStatus(f) { listeners.status.push(f); },
+      onData(f) { listeners.data.push(f); },
+      onCode(f) { listeners.code.push(f); },
+      isPersistent: () => lsOK,
+      flushNow: () => jSync(),
+      local: ls,
+      _debug: () => ({ code, dirty, failed: jbFailed, pending: dirty ? 1 : 0, events: events.length }),
+    };
+    return;
+  }
+
   window.FDPStore = {
-    cloud: CLOUD, deviceId,
+    cloud: CLOUD, backend: BACKEND, deviceId,
+    lastSaved: () => (status() === 'saved' ? Date.now() : 0),
+    backupJSON: () => JSON.stringify({ v: 1, app: 'max-fdp', progress: data }, null, 1),
+    onCode() {},
+    events: () => [],
     validCode, normCode, resolveCode, hashCode, setHash, suggestCode,
     currentCode: () => code,
     openLocal, open, refresh, commit, reset, leave, readForParent, merge, fresh, normalize,

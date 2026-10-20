@@ -11356,6 +11356,646 @@ window.FDP_BANK = [
     }
    }
   ]
+ },
+ {
+  "id": "b173",
+  "skill": "repeating",
+  "kind": "short",
+  "level": 1,
+  "prompt": "You type 5 &divide; 11 and your calculator shows 0.4545454545. Write the exact decimal using a bar.",
+  "answer": {
+   "type": "num",
+   "value": "0.(45)",
+   "form": "decimal"
+  },
+  "errors": [
+   {
+    "value": "0.4545454545",
+    "misconception": "repeating-truncate",
+    "feedback": "That is just what the screen has room for. The pattern 45 keeps going forever, so mark it with a bar."
+   },
+   {
+    "value": "0.4(5)",
+    "misconception": "bar-placement",
+    "feedback": "The bar goes over every digit that repeats. Here both 4 and 5 repeat, not just the 5."
+   }
+  ],
+  "hint": "Look for the smallest group of digits that repeats over and over.",
+  "steps": [
+   {
+    "say": "The display 0.4545454545 repeats the same two digits again and again.",
+    "ask": {
+     "prompt": "Which two digits repeat?",
+     "answer": {
+      "type": "num",
+      "value": "45",
+      "form": "number"
+     },
+     "hint": "Read the digits after the decimal point.",
+     "reveal": "The group 45 repeats: 45, 45, 45..."
+    }
+   },
+   {
+    "say": "The bar goes over the whole repeating group, starting right after the decimal point.",
+    "ask": {
+     "prompt": "Write the exact decimal with a bar.",
+     "answer": {
+      "type": "num",
+      "value": "0.(45)",
+      "form": "decimal"
+     },
+     "hint": "Put both repeating digits under the bar.",
+     "reveal": "[[r:0.(45)]]",
+     "errors": [
+      {
+       "value": "0.4(5)",
+       "misconception": "bar-placement",
+       "feedback": "Both 4 and 5 repeat, so both go under the bar."
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "id": "b174",
+  "skill": "repeating",
+  "kind": "short",
+  "level": 2,
+  "prompt": "You type 2 &divide; 3 and your calculator shows 0.6666666667. Write the exact decimal using a bar.",
+  "answer": {
+   "type": "num",
+   "value": "0.(6)",
+   "form": "decimal"
+  },
+  "errors": [
+   {
+    "value": "0.6666666667",
+    "misconception": "repeating-truncate",
+    "feedback": "The calculator ran out of room and rounded the last 6 up to 7. The real decimal is all 6s forever."
+   },
+   {
+    "value": "0.6",
+    "misconception": "repeating-truncate",
+    "feedback": "2 &divide; 3 does not stop at one 6. The 6 repeats forever, so use a bar."
+   }
+  ],
+  "hint": "Compare the last digit to the others. Is a 7 really part of the pattern?",
+  "steps": [
+   {
+    "say": "Every digit on the display is 6 except the very last one, which shows 7.",
+    "ask": {
+     "prompt": "Is the final 7 part of the real pattern?",
+     "answer": {
+      "type": "choice",
+      "choices": [
+       "Yes, 7 repeats too",
+       "No, the calculator rounded the last digit"
+      ],
+      "correct": 1
+     },
+     "hint": "A calculator only has about 10 digits of room, so it rounds the last one.",
+     "reveal": "The calculator rounded the last 6 up to 7. The true pattern is all 6s.",
+     "errors": [
+      {
+       "choice": 0,
+       "misconception": "repeating-truncate",
+       "feedback": "If 7 repeated, we would see it in the middle too. Only the last digit changed because of rounding."
+      }
+     ]
+    }
+   },
+   {
+    "say": "So the digit 6 repeats forever.",
+    "ask": {
+     "prompt": "Write 2 &divide; 3 as an exact decimal with a bar.",
+     "answer": {
+      "type": "num",
+      "value": "0.(6)",
+      "form": "decimal"
+     },
+     "hint": "Put the bar over the 6.",
+     "reveal": "[[r:0.(6)]]",
+     "errors": [
+      {
+       "value": "0.6666666667",
+       "misconception": "repeating-truncate",
+       "feedback": "That copies the rounded last digit. Use the bar instead."
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "id": "b175",
+  "skill": "repeating",
+  "kind": "short",
+  "level": 2,
+  "prompt": "You type 1 &divide; 6 and your calculator shows 0.1666666667. Write the exact decimal using a bar.",
+  "answer": {
+   "type": "num",
+   "value": "0.1(6)",
+   "form": "decimal"
+  },
+  "errors": [
+   {
+    "value": "0.1666666667",
+    "misconception": "repeating-truncate",
+    "feedback": "The last 7 is the calculator rounding. The real decimal keeps repeating 6 forever."
+   },
+   {
+    "value": "0.(16)",
+    "misconception": "bar-placement",
+    "feedback": "The 1 appears only once. Only the 6 repeats, so the bar goes over just the 6."
+   },
+   {
+    "value": "0.(1)",
+    "misconception": "bar-placement",
+    "feedback": "The 1 is not the repeating digit. The 6 is."
+   }
+  ],
+  "hint": "One digit comes first and is not repeated. Which digit repeats after it?",
+  "steps": [
+   {
+    "say": "The display is 0.1666666667. The last 7 is the calculator rounding the 6.",
+    "ask": {
+     "prompt": "Which single digit repeats forever?",
+     "answer": {
+      "type": "num",
+      "value": "6",
+      "form": "number"
+     },
+     "hint": "Ignore the first digit and the rounded last digit.",
+     "reveal": "The 6 repeats."
+    }
+   },
+   {
+    "say": "The 1 shows up only once, right after the decimal point, so it stays outside the bar.",
+    "ask": {
+     "prompt": "Write the exact decimal with the bar over the repeating digit only.",
+     "answer": {
+      "type": "num",
+      "value": "0.1(6)",
+      "form": "decimal"
+     },
+     "hint": "0.1 followed by a barred 6.",
+     "reveal": "[[r:0.1(6)]]",
+     "errors": [
+      {
+       "value": "0.(16)",
+       "misconception": "bar-placement",
+       "feedback": "That puts the 1 under the bar too. Only the 6 repeats."
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "id": "b176",
+  "skill": "repeating",
+  "kind": "short",
+  "level": 1,
+  "prompt": "You type 7 &divide; 16 and your calculator shows 0.4375. Write the exact decimal.",
+  "answer": {
+   "type": "num",
+   "value": "0.4375",
+   "form": "decimal"
+  },
+  "errors": [
+   {
+    "value": "0.(4375)",
+    "misconception": "decimal-kind",
+    "feedback": "The display stopped because the division ended, not because it ran out of room. It does not repeat, so no bar."
+   },
+   {
+    "value": "0.44",
+    "misconception": "rounded-as-exact",
+    "feedback": "0.44 is rounded. The calculator shows the exact value, 0.4375."
+   },
+   {
+    "value": "0.4(375)",
+    "misconception": "decimal-kind",
+    "feedback": "Nothing repeats here. The decimal simply ends after 4 digits."
+   }
+  ],
+  "hint": "Does the display fill the screen with a repeating pattern, or does it just end?",
+  "steps": [
+   {
+    "say": "The display 0.4375 is short and has no repeating pattern. It ended on its own.",
+    "ask": {
+     "prompt": "Is this decimal terminating (it ends) or repeating?",
+     "answer": {
+      "type": "choice",
+      "choices": [
+       "Terminating",
+       "Repeating"
+      ],
+      "correct": 0
+     },
+     "hint": "Look for digits that repeat over and over.",
+     "reveal": "It ends after 4 digits, so it is terminating.",
+     "errors": [
+      {
+       "choice": 1,
+       "misconception": "decimal-kind",
+       "feedback": "A repeating decimal fills the whole screen with a pattern. This one stops."
+      }
+     ]
+    }
+   },
+   {
+    "say": "A terminating decimal needs no bar and no rounding. You copy it exactly.",
+    "ask": {
+     "prompt": "Write the exact decimal.",
+     "answer": {
+      "type": "num",
+      "value": "0.4375",
+      "form": "decimal"
+     },
+     "hint": "Copy what the calculator shows.",
+     "reveal": "0.4375"
+    }
+   }
+  ]
+ },
+ {
+  "id": "b177",
+  "skill": "frac-dec",
+  "kind": "short",
+  "level": 1,
+  "prompt": "Your calculator shows 0.875. Write it as a fraction in simplest form.",
+  "answer": {
+   "type": "num",
+   "value": "7/8",
+   "form": "fraction"
+  },
+  "errors": [
+   {
+    "value": "875/100",
+    "misconception": "denominator-places",
+    "feedback": "0.875 has three decimal places, so the denominator is 1000, not 100."
+   },
+   {
+    "value": "875/10000",
+    "misconception": "denominator-places",
+    "feedback": "0.875 has three decimal places, so the denominator is 1000, not 10,000."
+   }
+  ],
+  "hint": "Read the decimal as thousandths, then divide top and bottom by their greatest common factor.",
+  "steps": [
+   {
+    "say": "0.875 has three decimal places, so it is 875 thousandths.",
+    "ask": {
+     "prompt": "Write it as a fraction over 1000: 875/___",
+     "answer": {
+      "type": "num",
+      "value": "1000",
+      "form": "number"
+     },
+     "hint": "Three places means thousandths.",
+     "reveal": "875/1000"
+    }
+   },
+   {
+    "say": "Now simplify. Both 875 and 1000 are divisible by 125.",
+    "ask": {
+     "prompt": "Write 875/1000 in simplest form.",
+     "answer": {
+      "type": "num",
+      "value": "7/8",
+      "form": "fraction"
+     },
+     "hint": "875 &divide; 125 = 7 and 1000 &divide; 125 = 8.",
+     "reveal": "[[f:7/8]]"
+    }
+   }
+  ]
+ },
+ {
+  "id": "b178",
+  "skill": "pct-frac",
+  "kind": "short",
+  "level": 2,
+  "prompt": "You type 33 &divide; 400 to find [[f:33/400]] as a decimal and your calculator shows 0.0825. Write [[f:33/400]] as a percent.",
+  "answer": {
+   "type": "num",
+   "value": "8.25",
+   "form": "percent"
+  },
+  "errors": [
+   {
+    "value": "0.825",
+    "misconception": "pct-shift-one-place",
+    "feedback": "You moved the decimal point only one place. Percent means per hundred: two places."
+   },
+   {
+    "value": "825",
+    "misconception": "pct-shift-wrong-way",
+    "feedback": "That moves the point four places. Percent means per hundred: move it only two places to the right."
+   },
+   {
+    "value": "0.0825",
+    "misconception": "pct-small-as-whole",
+    "feedback": "Putting a % sign on 0.0825 changes its value. Multiply by 100 first."
+   }
+  ],
+  "hint": "Move the decimal point two places to the right and add a % sign.",
+  "steps": [
+   {
+    "say": "A percent is a number out of 100. To go from a decimal to a percent, multiply by 100.",
+    "ask": {
+     "prompt": "0.0825 &times; 100 = ?",
+     "answer": {
+      "type": "num",
+      "value": "8.25",
+      "form": "decimal"
+     },
+     "hint": "Move the point two places right.",
+     "reveal": "8.25"
+    }
+   },
+   {
+    "say": "That number is the percent.",
+    "ask": {
+     "prompt": "So [[f:33/400]] is what percent?",
+     "answer": {
+      "type": "num",
+      "value": "8.25",
+      "form": "percent"
+     },
+     "hint": "Add the % sign.",
+     "reveal": "8.25%"
+    }
+   }
+  ]
+ },
+ {
+  "id": "b179",
+  "skill": "pct-frac",
+  "kind": "short",
+  "level": 1,
+  "prompt": "You type 7 &divide; 5 to find [[f:7/5]] as a decimal and your calculator shows 1.4. Write [[f:7/5]] as a percent.",
+  "answer": {
+   "type": "num",
+   "value": "140",
+   "form": "percent"
+  },
+  "errors": [
+   {
+    "value": "14",
+    "misconception": "pct-shift-one-place",
+    "feedback": "You moved the decimal only one place. Percent means per hundred: two places, so 1.4 becomes 140."
+   },
+   {
+    "value": "1.4",
+    "misconception": "pct-small-as-whole",
+    "feedback": "1.4 is the decimal. A percent is 100 times bigger: 1.4 = 140%."
+   }
+  ],
+  "hint": "Multiply the decimal by 100. Use a zero as a placeholder.",
+  "steps": [
+   {
+    "say": "To change a decimal to a percent, move the point two places to the right.",
+    "ask": {
+     "prompt": "1.4 &times; 100 = ?",
+     "answer": {
+      "type": "num",
+      "value": "140",
+      "form": "number"
+     },
+     "hint": "1.4 has one digit after the point; you need two places, so add a zero.",
+     "reveal": "140"
+    }
+   },
+   {
+    "say": "Whole is 100%, so a value bigger than 1 gives a percent over 100.",
+    "ask": {
+     "prompt": "[[f:7/5]] = ___ %",
+     "answer": {
+      "type": "num",
+      "value": "140",
+      "form": "percent"
+     },
+     "hint": "Use the number you just found.",
+     "reveal": "140%"
+    }
+   }
+  ]
+ },
+ {
+  "id": "b180",
+  "skill": "rounding",
+  "kind": "word",
+  "level": 1,
+  "prompt": "Three friends split a $14.00 pizza bill equally. Your calculator shows 14 &divide; 3 = 4.666666667. How much does each friend pay, to the nearest cent?",
+  "answer": {
+   "type": "num",
+   "value": "4.67",
+   "form": "money",
+   "rounding": {
+    "mode": "nearest",
+    "to": 0.01,
+    "why": "Money is rounded to the nearest cent (two decimal places): look at the third decimal digit."
+   }
+  },
+  "errors": [
+   {
+    "value": "4.66",
+    "misconception": "rounding-direction",
+    "feedback": "$4.66 cuts the number off. The digit after the cents is 6, so round the cents UP."
+   },
+   {
+    "value": "4.666666667",
+    "misconception": "money-cents",
+    "feedback": "Money goes to the cent: exactly 2 decimal places."
+   },
+   {
+    "value": "4.7",
+    "misconception": "money-cents",
+    "feedback": "Write money with two decimal places. Round to the nearest cent, not the nearest dime."
+   }
+  ],
+  "hint": "Keep two decimal places and look at the digit right after them.",
+  "steps": [
+   {
+    "say": "The display shows 4.666666667. Cents are the second decimal place.",
+    "figure": {
+     "type": "roundline",
+     "value": "4.666666667",
+     "step": 0.01,
+     "mode": "nearest"
+    },
+    "ask": {
+     "prompt": "What digit comes right after the cents (4.66...)?",
+     "answer": {
+      "type": "num",
+      "value": "6",
+      "form": "number"
+     },
+     "hint": "It is the third digit after the decimal point.",
+     "reveal": "The digit is 6."
+    }
+   },
+   {
+    "say": "A 6 is 5 or more, so the cents round up.",
+    "ask": {
+     "prompt": "Each friend pays ___ (nearest cent).",
+     "answer": {
+      "type": "num",
+      "value": "4.67",
+      "form": "money"
+     },
+     "hint": "Raise the last cents digit by one.",
+     "reveal": "$4.67"
+    }
+   }
+  ]
+ },
+ {
+  "id": "b181",
+  "skill": "rounding",
+  "kind": "word",
+  "level": 2,
+  "prompt": "A teacher needs 13 glue sticks for her class. Glue sticks come in packs of 3. Your calculator shows 13 &divide; 3 = 4.333333333. How many packs must she buy?",
+  "answer": {
+   "type": "num",
+   "value": "5",
+   "form": "number",
+   "label": [
+    "packs",
+    "pack"
+   ],
+   "rounding": {
+    "mode": "up",
+    "to": 1,
+    "why": "You can't buy part of a pack, and you need ENOUGH: round UP to the next whole number."
+   }
+  },
+  "errors": [
+   {
+    "value": "4",
+    "misconception": "math-vs-real-rounding",
+    "feedback": "4 packs hold only 12 glue sticks, so one student has none. When you need enough, round UP."
+   },
+   {
+    "value": "4.333333333",
+    "misconception": "rounding-direction",
+    "feedback": "You can't buy part of a pack. Round up to a whole number of packs."
+   }
+  ],
+  "hint": "Check whether 4 packs give enough glue sticks.",
+  "steps": [
+   {
+    "say": "The display shows a little over 4 packs.",
+    "figure": {
+     "type": "roundline",
+     "value": "4.333333333",
+     "step": 1,
+     "mode": "up"
+    },
+    "ask": {
+     "prompt": "How many glue sticks are in 4 packs?",
+     "answer": {
+      "type": "num",
+      "value": "12",
+      "form": "number"
+     },
+     "hint": "4 &times; 3.",
+     "reveal": "12"
+    }
+   },
+   {
+    "say": "She needs 13, so 12 is one short.",
+    "ask": {
+     "prompt": "She must buy ___ packs.",
+     "answer": {
+      "type": "num",
+      "value": "5",
+      "form": "number",
+      "label": [
+       "packs",
+       "pack"
+      ]
+     },
+     "hint": "She needs enough, so round up. Don't forget the label.",
+     "reveal": "5 packs"
+    }
+   }
+  ]
+ },
+ {
+  "id": "b182",
+  "skill": "rounding",
+  "kind": "word",
+  "level": 2,
+  "prompt": "Max has $14. Each arcade game costs $3. Your calculator shows 14 &divide; 3 = 4.666666667. What is the greatest number of games Max can play?",
+  "answer": {
+   "type": "num",
+   "value": "4",
+   "form": "number",
+   "label": [
+    "games",
+    "game"
+   ],
+   "rounding": {
+    "mode": "down",
+    "to": 1,
+    "why": "You can only pay for whole games: when you can only AFFORD so many, round DOWN."
+   }
+  },
+  "errors": [
+   {
+    "value": "5",
+    "misconception": "math-vs-real-rounding",
+    "feedback": "5 games cost $15, which is more than $14. When you can only afford so many, round DOWN."
+   },
+   {
+    "value": "4.666666667",
+    "misconception": "rounding-direction",
+    "feedback": "You can't play part of a game. Give a whole number of games."
+   }
+  ],
+  "hint": "Check what 5 games would cost.",
+  "steps": [
+   {
+    "say": "The display shows almost 5 games, but not quite.",
+    "figure": {
+     "type": "roundline",
+     "value": "4.666666667",
+     "step": 1,
+     "mode": "down"
+    },
+    "ask": {
+     "prompt": "How many dollars would 5 games cost?",
+     "answer": {
+      "type": "num",
+      "value": "15",
+      "form": "money"
+     },
+     "hint": "5 &times; $3.",
+     "reveal": "$15"
+    }
+   },
+   {
+    "say": "$15 is more than the $14 Max has, so 5 games is too many.",
+    "ask": {
+     "prompt": "Max can play ___ games.",
+     "answer": {
+      "type": "num",
+      "value": "4",
+      "form": "number",
+      "label": [
+       "games",
+       "game"
+      ]
+     },
+     "hint": "Round down to what he can afford. Add the label.",
+     "reveal": "4 games"
+    }
+   }
+  ]
  }
 ];
 

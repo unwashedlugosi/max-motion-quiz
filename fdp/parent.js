@@ -30,7 +30,10 @@
   }
   const TXT = { strong: 'Strong', shaky: 'Shaky', weak: 'Needs work', untested: 'Not checked yet' };
 
-  function render(d, events, code) {
+  function lsMirror(code) {
+    try { const raw = localStorage.getItem('maxFdpPrep.cache.' + code); return raw ? ST.normalize(JSON.parse(raw)) : null; } catch (e) { return null; }
+  }
+  function render(d, events, code, syncLine) {
     const total = Object.values(d.time || {}).reduce((a, b) => a + (+b || 0), 0);
     const skills = Object.keys(SKILLS).filter((s) => d.hist[s]).concat(Object.keys(d.hist).filter((s) => !SKILLS[s]));
     const misc = Object.keys(d.miscLog || {}).map((id) => ({ id, n: d.miscLog[id].length })).sort((a, b) => b.n - a.n);
@@ -43,6 +46,7 @@
     const fmtT = (t) => { try { return new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } };
     const html = [];
     html.push('<p class="eyebrow">Read-only parent view' + (code ? ' · code <b>' + esc(code) + '</b>' : ' · this device') + '</p>');
+    html.push('<p class="sync" data-sync-line>' + esc(syncLine || (code ? '' : 'Saved on this device only.')) + '</p>');
     html.push('<h1 class="wordmark">Max’s <span class="fl f">F</span>/<span class="fl d">D</span>/<span class="fl p">P</span> progress</h1>');
     html.push('<div class="parent-grid">');
     html.push('<section class="pcard"><h2 class="section-title">Time</h2><p class="pbig">' + mins(total) + ' min</p><ul class="plist">' +
@@ -51,6 +55,14 @@
     html.push('<section class="pcard"><h2 class="section-title">Practice tests</h2><p>Test A: ' + mock(mA, 'A') + '</p><p>Test B: ' + mock(mB, 'B') + '</p>' +
       (mA && mA.done && mB && mB.done ? '<p class="pbig">' + (mB.score - mA.score >= 0 ? '+' : '') + (mB.score - mA.score) + ' points</p>' : '') + '</section>');
     html.push('<section class="pcard"><h2 class="section-title">Skills</h2><ul class="skills-list">' + (skills.length ? skills.map((s) => { const st = status(d.hist[s]); return '<li class="sk-row"><span class="sk-name">' + esc(skillName(s)) + '</span><span class="skill-pill is-' + st + '">' + TXT[st] + '</span></li>'; }).join('') : '<li class="quiet">No answers yet.</li>') + '</ul></section>');
+    const CONVS = ['place-value', 'pct-dec', 'frac-dec', 'pct-frac', 'repeating', 'compare-mixed'];
+    const ms = d.mastery || {};
+    html.push('<section class="pcard"><h2 class="section-title">Conversion mastery</h2><ul class="plist">' + CONVS.map((s2) => { const m = ms[s2] || {}; return '<li><span>' + esc(skillName(s2)) + '</span><b>' + (m.mastered ? 'Mastered ✓' : (m.streak || 0) + '/5 in a row') + '</b></li>'; }).join('') + '</ul></section>');
+    const hist = (k) => ((d[k] || {}).history || []);
+    const fmt = (ms2) => { const s3 = Math.round(ms2 / 1000); return Math.floor(s3 / 60) + ':' + String(s3 % 60).padStart(2, '0'); };
+    html.push('<section class="pcard"><h2 class="section-title">Speed rounds and the Gauntlet</h2>' +
+      (hist('speed').length ? '<ul class="plist">' + hist('speed').slice(-8).reverse().map((r) => '<li><span>Speed round</span><b>' + r.right + '/' + r.of + ' in ' + fmt(r.ms) + (r.pass ? ' ✓' : '') + '</b></li>').join('') + '</ul>' : '<p class="quiet">No speed rounds yet.</p>') +
+      (hist('gauntlet').length ? '<p>Gauntlet: ' + (hist('gauntlet').some((r) => r.pass) ? '<b>cleared ✓</b>' : 'best ' + Math.max(...hist('gauntlet').map((r) => r.right)) + '/12') + ' (' + hist('gauntlet').length + ' tries)</p>' : '<p class="quiet">Gauntlet not tried yet.</p>') + '</section>');
     html.push('<section class="pcard"><h2 class="section-title">Mix-ups seen</h2>' + (misc.length ? '<ul class="plist">' + misc.map((m) => '<li><span>' + esc(miscLabel(m.id)) + '</span><b>×' + m.n + '</b></li>').join('') + '</ul>' : '<p class="quiet">None yet.</p>') + '</section>');
     html.push('</div>');
     html.push('<section class="pcard"><h2 class="section-title">Recent misses</h2>' + (misses.length ? '<ul class="pmiss">' + misses.map((r) => {
@@ -63,13 +75,16 @@
 
   async function boot() {
     if (!ST.cloud) { render(ST.openLocal(), [], null); return; }
-    const code = ST.hashCode();
+    const code = ST.hashCode() || (ST.backend === 'jsonblob' ? ST.resolveCode() : null);
     if (!code) { root.innerHTML = '<div class="parentview"><h1 class="wordmark">Parent view</h1><p>Open this page with the practice code at the end of the link, like <span class="mono">parent.html#max-otter-4821</span>.</p></div>'; return; }
     try {
       const r = await ST.readForParent(code);
-      render(r.data, r.events, code);
+      render(r.data, r.events, code, 'Saved to the cloud ✓ (code ' + code + ')');
     } catch (e) {
-      root.innerHTML = '<div class="parentview"><h1 class="wordmark">Parent view</h1><p class="problem">Could not reach the server. Check the connection and reload.</p></div>';
+      // the cloud copy is out of reach: show what this device has, and say so
+      const local = ST.backend === 'jsonblob' ? lsMirror(code) : null;
+      if (local) { render(local, [], code, 'Could not reach the save service. Showing the copy saved on this device.'); return; }
+      root.innerHTML = '<div class="parentview"><h1 class="wordmark">Parent view</h1><p class="problem">Could not reach the save service. Check the connection and reload.</p></div>';
     }
   }
   window.addEventListener('hashchange', boot);

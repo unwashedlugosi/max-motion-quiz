@@ -33,7 +33,7 @@
   const groupOf = (sk) => (GROUPS.convert.indexOf(sk) >= 0 ? 'convert' : GROUPS.ops.indexOf(sk) >= 0 ? 'ops' : 'word');
   const BLOCKS = [
     { name: 'Check-in', min: 40, focus: 'diag', blurb: 'A mixed check of every skill, then your results.' },
-    { name: 'Conversions and comparing', min: 50, focus: 'convert', blurb: 'F, D and P, and which number is bigger.' },
+    { name: 'Conversion mastery', min: 70, focus: 'convert', blurb: 'F, D and P chains until each skill is mastered, then a speed round and the Gauntlet.' },
     { name: 'Fraction and decimal operations', min: 50, focus: 'ops', blurb: 'Add, subtract, multiply, divide.' },
     { name: 'Word problems, labels, rounding', min: 50, focus: 'word', blurb: 'Read, plan, solve, label.' },
     { name: 'Practice test A', min: 55, focus: 'mockA', blurb: '24 questions, 45 minutes, then a scored review.' },
@@ -230,9 +230,14 @@
     if (f === 'mockA') return [{ k: 'mock', which: 'A' }, { k: 'review', which: 'A' }];
     if (f === 'mockB') return [{ k: 'mock', which: 'B' }, { k: 'review', which: 'B' }, { k: 'summary' }];
     if (f === 'fix') return [{ k: 'set', focus: 'mockfix' }, { k: 'set', focus: 'retest' }, { k: 'set', focus: 'mixed', n: 12 }];
-    const lessons = needsLesson(f).slice(0, f === 'word' ? 3 : 4).map((s) => ({ k: 'lesson', skill: s }));
+    const lessons = needsLesson(f).slice(0, f === 'word' ? 3 : f === 'convert' ? 6 : 4).map((s) => ({ k: 'lesson', skill: s }));
     // skills he already owns free up time: it goes to word problems
     if (f === 'word') return lessons.concat([{ k: 'set', focus: 'word', n: lessons.length ? 8 : 14 }]);
+    if (f === 'convert') {
+      // lessons only where the check-in showed a gap; every skill gets mastery practice (chains), then speed + Gauntlet
+      const mastery = CONV.filter((sk) => lessons.every((l) => l.skill !== sk)).map((sk) => ({ k: 'master', skill: sk }));
+      return lessons.concat(mastery, [{ k: 'speed' }, { k: 'gauntlet' }]);
+    }
     if (!lessons.length) return [{ k: 'set', focus: 'word', n: 12, why: 'You already own these skills, so this block goes to word problems.' }];
     return lessons.concat([{ k: 'set', focus: f, n: 8 }]);
   }
@@ -279,6 +284,7 @@
     timeSinceCommit += 5000;
     if (timeSinceCommit >= 60000) { timeSinceCommit = 0; save(); }
     document.querySelectorAll('[data-active-min]').forEach((e) => { e.textContent = String(activeMin()); });
+    document.querySelectorAll('[data-sync]').forEach(paintSync);
     document.querySelectorAll('[data-block-min]').forEach((e) => { e.textContent = String(mins((curBlock() || {}).ms || 0)); });
   }, 5000);
 
@@ -326,10 +332,22 @@
    * Sync status (cloud mode only)
    * ===================================================================== */
   const SYNC_TEXT = { saved: 'Saved', saving: 'Saving…', offline: 'Offline. Your work will save when you are back online.' };
-  function paintSync(el) { const s = ST.status(); el.textContent = SYNC_TEXT[s] || ''; el.setAttribute('data-state', s); }
+  function ago(t) { const s2 = Math.max(0, Math.round((now() - t) / 1000)); return s2 < 60 ? s2 + 's ago' : Math.round(s2 / 60) + ' min ago'; }
+  function paintSync(el) {
+    const s2 = ST.status();
+    el.setAttribute('data-state', s2);
+    if (ST.backend === 'jsonblob') {
+      const c = ST.currentCode();
+      el.textContent = s2 === 'saved' ? 'Saved to the cloud ✓ (code ' + c + ') · ' + ago(ST.lastSaved())
+        : s2 === 'saving' && c ? 'Saving to the cloud…' : 'Saved on this device only, will upload when it can';
+      return;
+    }
+    el.textContent = SYNC_TEXT[s2] || '';
+  }
   function syncNode() { if (!ST.cloud) return null; const el = h('span', { class: 'sync', 'data-sync': '' }); paintSync(el); return el; }
   ST.onStatus(() => document.querySelectorAll('[data-sync]').forEach(paintSync));
   ST.onData(() => { if (state.screen === 'home' && !state.dialog) showHome(); });
+  ST.onCode(() => { if (state.screen === 'home' && !state.dialog) showHome(); });
 
   /* =====================================================================
    * Answer inputs
@@ -893,7 +911,7 @@
     }, 'btn-quiet btn-small', { disabled: true, title: 'Give it a real try first' }) : null;
     if (hintBtn) { const t = setTimeout(() => { hintBtn.disabled = false; }, HINT_LOCK_MS); state.cleanup.push(() => clearTimeout(t)); }
     const promptEl = h('div', { class: 'qprompt' }, [
-      opts.chips && opts.chips.length ? h('div', { class: 'chips' }, opts.chips.filter(Boolean).map((c) => (c.nodeType ? c : h('span', { class: 'chip' }, c)))) : null,
+      opts.chips && opts.chips.length ? h('div', { class: 'chips' }, opts.chips.filter(Boolean).map((c) => (c.nodeType ? c : h('span', { class: 'chip' }, c))).concat(item.kind === 'word' ? [h('span', { class: 'chip chip-calc' }, 'Calculator OK')] : [])) : null,
       h('h2', { class: 'prompt', id: 'qprompt', tabindex: '-1', 'data-focus': '', html: md(item.prompt) }),
     ]);
     let mask = null;
@@ -1022,9 +1040,11 @@
    * ===================================================================== */
   function runSet(cfg) {
     const S = { i: 0, q: cfg.queue.slice(), answered: 0, first: 0, streak: 0, misc: {}, reasked: new Set(), noHint: new Set(), used: new Set(cfg.queue), retestAdded: false, stop: false };
-    if (!S.q.length) { (cfg.onDone || showHome)({ answered: 0, first: 0 }); return; }
+    if (!S.q.length && !cfg.more) { (cfg.onDone || showHome)({ answered: 0, first: 0 }); return; }
     function shouldEnd() {
       if (S.stop) return true;
+      if (cfg.more && S.i >= S.q.length) { if (cfg.until && cfg.until(S)) return true; const nx = cfg.more(S); if (nx) S.q.push(nx); }
+      if (cfg.until && cfg.until(S)) return true;
       if (cfg.adaptive === 'block' && (S.streak >= BLOCK_STREAK || S.answered >= BLOCK_MAX)) {
         if (cfg.retest && !S.retestAdded) {
           S.retestAdded = true;
@@ -1042,15 +1062,16 @@
       const item = getItem(id);
       if (!item) { S.i++; return show(); }
       state.screen = 'set';
+      if (item.chain) return showChain(item, id);
       const isRetest = S.retestNow && S.i === S.q.length - 1;
       const chips = [skillName(item.skill), item.kind === 'word' ? 'Word problem' : null, isRetest ? 'Re-test from earlier' : null, S.noHint.has(id) ? 'Twin problem: no hints' : null];
       const total = cfg.adaptive === 'block' ? null : S.q.length;
-      const label = cfg.adaptive === 'block' ? 'Problem ' + (S.i + 1) + (S.streak ? ' · ' + S.streak + ' in a row' : '') : (S.i + 1) + ' of ' + total;
+      const label = cfg.label ? cfg.label(S) : cfg.adaptive === 'block' ? 'Problem ' + (S.i + 1) + (S.streak ? ' · ' + S.streak + ' in a row' : '') : (S.i + 1) + ' of ' + total;
       let lastSubmit = now();
       const showMe = btn('Show me how', () => wrong({ status: 'wrong' }, '', true), 'btn-quiet btn-small');
       const ctx = itemCard(item, { chips, noHint: S.noHint.has(id), onPrimary: () => check() , extraButtons: showMe });
       const moveOn = cfg.adaptive === 'block' ? btn('Move on', () => { S.stop = true; endSet(); }, 'btn-quiet btn-small') : btn('Finish set', () => { S.stop = true; endSet(); }, 'btn-quiet btn-small');
-      const head = progressHead(label, total ? S.i / total : null, () => askLeave(cfg.leave || showHome), moveOn);
+      const head = progressHead(label, total && !cfg.more ? S.i / total : null, () => askLeave(cfg.leave || showHome), moveOn);
       const walkHost = h('div', { class: 'item-walk' });
       ctx.el.appendChild(walkHost);
       mountScreen(h('div', { class: 'qscreen' + (cfg.mode === 'car' ? ' is-car' : '') }, [head, ctx.el]));
@@ -1079,6 +1100,7 @@
         ctx.done = true;
         const score = ctx.hinted ? 0.5 : ctx.formTries ? 0.75 : 1;
         record({ item: id, skill: item.skill, score, ok: true, given: ctx.inp.value(), mode: cfg.mode, ms: now() - ctx.shownAt });
+        if (cfg.onAnswer) cfg.onAnswer(item, { clean: score === 1, ok: true });
         S.answered++; if (score === 1) { S.first++; S.streak++; } else S.streak = 0;
         ctx.inp.mark && ctx.inp.mark('is-right');
         if (item.answer.type === 'choice') ctx.inp.markChoice(ctx.inp.value(), 'is-right', ICON.check);
@@ -1098,6 +1120,7 @@
         ctx.done = true;
         const wf = asked ? { html: null, misc: null } : wrongFeedback(res, item.answer);
         record({ item: id, skill: item.skill, score: 0, ok: false, given: asked ? '(asked to see how)' : given, misc: wf.misc, mode: cfg.mode, ms: now() - ctx.shownAt });
+        if (cfg.onAnswer) cfg.onAnswer(item, { clean: false, ok: false });
         if (wf.misc) S.misc[wf.misc] = (S.misc[wf.misc] || 0) + 1;
         S.answered++; S.streak = 0;
         ctx.inp.mark && ctx.inp.mark('is-wrong');
@@ -1134,6 +1157,40 @@
       }
       function next() { S.i++; show(); }
     }
+    /** A chain item: given one corner of the triangle, fill in the other two, one blocking step at a time. */
+    function showChain(item, id) {
+      const t0 = now();
+      let clean = true;
+      const label = cfg.label ? cfg.label(S) : (S.i + 1) + (S.q.length > S.i + 1 ? ' of ' + S.q.length : '');
+      const head = progressHead(label, null, () => askLeave(cfg.leave || showHome), btn('Finish set', () => { S.stop = true; endSet(); }, 'btn-quiet btn-small'));
+      const nextBtn = btn(['Next', h('span', { class: 'kbd', 'aria-hidden': 'true' }, 'Enter')], () => { S.i++; show(); }, 'btn-primary', { hidden: true });
+      const host = h('div', { class: 'chain-host' });
+      const ctx = { done: false, primary: nextBtn, inp: null };
+      state.cur = item;
+      mountScreen(h('div', { class: 'qscreen chainscreen' + (cfg.mode === 'car' ? ' is-car' : '') }, [
+        head,
+        h('div', { class: 'qprompt' }, [h('div', { class: 'chips' }, [h('span', { class: 'chip' }, skillName(item.skill)), h('span', { class: 'chip chip-chain' }, 'F → D → P chain'), cfg.chipFor ? cfg.chipFor(item) : null]), h('h2', { class: 'prompt', id: 'qprompt', tabindex: '-1', 'data-focus': '', html: md(item.prompt) })]),
+        host,
+        h('div', { class: 'actionbar' }, [h('span', { class: 'spacer' }), nextBtn]),
+      ]));
+      bindKeys(() => (ctx.done ? ctx : null));
+      walkthrough(host, item.steps, {
+        compact: true,
+        noHints: S.noHint.has(id),
+        onAskDone: (r) => { if (r.misses || r.hinted || r.revealed) clean = false; },
+        onReveal: () => { clean = false; },
+        onDone: () => {
+          ctx.done = true;
+          const score = clean ? 1 : 0;
+          record({ item: id, skill: item.skill, score, ok: clean, given: clean ? 'chain' : '(chain with help)', mode: cfg.mode, ms: now() - t0 });
+          S.answered++; if (clean) { S.first++; S.streak++; } else S.streak = 0;
+          if (cfg.onAnswer) cfg.onAnswer(item, { clean, ok: clean });
+          host.appendChild(note(clean ? 'good' : 'part', clean ? 'Chain done, first try.' : 'Chain done.', clean ? null : 'Corners that needed help do not count toward mastery. The next one will.'));
+          nextBtn.hidden = false;
+          if (isFine()) nextBtn.focus({ preventScroll: true });
+        },
+      });
+    }
     function endSet() {
       state.screen = 'set-end';
       const miscs = Object.keys(S.misc);
@@ -1142,6 +1199,7 @@
       mountScreen(h('div', { class: 'endset' }, [
         h('p', { class: 'eyebrow' }, cfg.title || 'Practice'),
         h('h1', { class: 'bigscore' }, S.answered ? [h('span', null, S.first + ' of ' + S.answered), h('small', null, 'right on the first try')] : 'Set finished'),
+        cfg.endNote ? cfg.endNote() : null,
         miscs.length ? h('div', { class: 'endset-misc' }, [h('p', { class: 'section-title' }, 'Mix-ups that showed up'), h('ul', { class: 'misc-list' }, miscs.map((m) => h('li', null, miscBlock(m))))]) : null,
         h('div', { class: 'end-actions' }, [go]),
       ]), '[data-focus]');
@@ -1165,21 +1223,24 @@
   /* =====================================================================
    * Check-in (diagnostic): no teaching, neutral acknowledgement, keep moving
    * ===================================================================== */
-  function runDiag(onDone) {
+  function runDiag(onDone, cfg) {
+    cfg = cfg || {};
+    const key = cfg.key || 'diag';
     const d = D();
-    if (!d.diag || d.diag.done && !C.diag.length) d.diag = { t: now(), startedAt: now(), idx: 0, ans: {}, done: false };
-    const dg = d.diag;
+    if (!d[key]) d[key] = { t: now(), startedAt: now(), idx: 0, ans: {}, done: false, items: cfg.ids || null };
+    const dg = d[key];
     if (dg.done) { onDone(); return; }
-    const N = C.diag.length;
+    const LIST = dg.items ? dg.items.map(getItem).filter(Boolean) : C.diag;
+    const N = LIST.length;
     if (!N) { dg.done = true; dg.doneAt = now(); save(); onDone(); return; }
     function show() {
       if (dg.idx >= N) return finish();
       state.screen = 'diag';
-      const item = C.diag[dg.idx];
+      const item = LIST[dg.idx];
       let nudged = false, lastSubmit = now();
       const skip = btn('Skip: not sure', () => submit(true), 'btn-quiet btn-small');
       const ctx = itemCard(item, { chips: [item.kind === 'word' ? 'Word problem' : 'Short answer'], noHint: true, primaryLabel: 'Save and go on', onPrimary: () => submit(false), extraButtons: skip });
-      const head = progressHead('Check-in ' + (dg.idx + 1) + ' of ' + N, dg.idx / N, () => askLeave(showHome, 'Your check-in answers so far are saved. You can pick up where you left off.'));
+      const head = progressHead((cfg.title || 'Check-in') + ' ' + (dg.idx + 1) + ' of ' + N, dg.idx / N, () => askLeave(showHome, 'Your check-in answers so far are saved. You can pick up where you left off.'));
       mountScreen(h('div', { class: 'qscreen' }, [head, h('p', { class: 'diag-note' }, 'No feedback during the check-in. Just do your best and keep moving.'), ctx.el]));
       bindKeys(() => ctx);
       if (isFine() || item.answer.type !== 'num') setTimeout(() => ctx.inp.focus(), 50);
@@ -1203,7 +1264,7 @@
         const ms = now() - ctx.shownAt;
         dg.ans[item.id] = { ok, ms, given: Array.isArray(v) ? v.join(',') : String(v === null ? '' : v).slice(0, 40), misc, score };
         dg.idx++; dg.t = now();
-        record({ item: item.id, skill: item.skill, score, ok, given: v, misc, mode: 'diag', ms });
+        record({ item: item.id, skill: item.skill, score, ok, given: v, misc, mode: key, ms });
         ctx.inp.lock(true);
         ctx.inp.collapse('Saved');
         ctx.fb.replaceChildren();
@@ -1213,7 +1274,7 @@
     }
     function finish() {
       dg.done = true; dg.doneAt = now(); dg.t = now();
-      save([{ kind: 'diag-done', t: now(), payload: { ms: now() - dg.startedAt, right: Object.values(dg.ans).filter((a) => a.ok).length, of: N } }]);
+      save([{ kind: key + '-done', t: now(), payload: { ms: now() - dg.startedAt, right: Object.values(dg.ans).filter((a) => a.ok).length, of: N } }]);
       onDone();
     }
     show();
@@ -1255,7 +1316,7 @@
    * ===================================================================== */
   function runLessonFlow(skill, onDone, inDay) {
     const lesson = lessonFor(skill);
-    const practice = () => {
+    const practice = CONV.indexOf(skill) >= 0 && GEN ? () => runMastery(skill, () => { if (inDay) { day().done[skill] = now(); touchDay(); save(); } onDone(); }) : () => {
       const used = new Set();
       runSet({ title: skillName(skill) + ': practice', mode: 'block', adaptive: 'block', skill, retest: !!inDay, queue: pickFor(skill, BLOCK_MAX, used, { byLevel: true }), noTimeBox: true,
         onDone: () => { if (inDay) { day().done[skill] = now(); touchDay(); save(); } onDone(); } });
@@ -1283,8 +1344,9 @@
       onDone: () => {
         d.lessons[lesson.id] = { t: now(), step: lesson.steps.length, done: true };
         save([{ kind: 'lesson-done', t: now(), payload: { lesson: lesson.id, skill: lesson.skill } }]);
-        const go = btn('Practice: 3 to 5 problems', onFinish, 'btn-primary');
-        endHost.replaceChildren(note('good', 'Lesson done.', 'Now a few problems on your own. Three right in a row and you move on.'), h('div', { class: 'end-actions' }, [go]));
+        const conv = CONV.indexOf(lesson.skill) >= 0;
+        const go = btn(conv ? 'Mastery practice' : 'Practice: 3 to 5 problems', onFinish, 'btn-primary');
+        endHost.replaceChildren(note('good', 'Lesson done.', conv ? 'Now chains and problems on your own. Five in a row on the first try, with two hard ones, and the skill is mastered.' : 'Now a few problems on your own. Three right in a row and you move on.'), h('div', { class: 'end-actions' }, [go]));
         try { endHost.scrollIntoView({ block: 'nearest' }); } catch (e) { /* ignore */ }
         if (isFine()) go.focus({ preventScroll: true });
       },
@@ -1327,6 +1389,7 @@
         h('li', null, [h('b', null, mockMax(w) + ' points'), ' total, 45 minutes']),
       ]),
       h('p', null, 'No feedback until you hand it in. You can skip around and come back. Then you get a scored review where every miss opens its walkthrough.'),
+      h('p', null, [h('span', { class: 'chip chip-calc' }, 'Calculator OK'), ' Calculator allowed, like the real test. The points are in the setup, the label, and the rounding.']),
       h('p', { class: 'quote' }, ['Labels cost a point, like on Mr. B’s test. ', h('span', { class: 'soft' }, MR_B.labels)]),
       h('div', { class: 'end-actions' }, [btn('Start the 45-minute test', () => start(true), 'btn-primary'), btn('Start without the timer', () => start(false), 'btn-quiet')]),
     ]));
@@ -1397,18 +1460,11 @@
     if (m.timer && m.endsAt <= now()) { handInNow(true); return; }
     show();
   }
-  function showReview(w, onDone) {
-    state.screen = 'review';
-    const m = D()[mockKey(w)];
-    if (!m || !m.done) { onDone(); return; }
-    const items = mockItems(w);
-    const other = w === 'B' ? D().mockA : null;
-    const counts = { right: 0, label: 0, form: 0, wrong: 0, blank: 0 };
-    items.forEach((it) => { const r = m.results[it.id]; if (r) counts[r.st === 'unreadable' ? 'wrong' : r.st] = (counts[r.st === 'unreadable' ? 'wrong' : r.st] || 0) + 1; });
+  function reviewRows(items, answers, results) {
     const ST_TEXT = { right: 'Full credit', label: 'Label or cents: −1', form: 'Right value, wrong form: half', wrong: 'Not yet', blank: 'Blank', unreadable: 'Could not read it' };
-    const rows = items.map((it, i) => {
-      const r = m.results[it.id] || { st: 'blank', pts: 0, max: kindPts(it) };
-      const given = m.ans[it.id];
+    return items.map((it, i) => {
+      const r = results[it.id] || { st: 'blank', pts: 0, max: kindPts(it) };
+      const given = answers[it.id];
       const givenHtml = given === undefined || given === null || given === '' ? '<span class="soft">blank</span>'
         : it.answer.type === 'choice' ? md(it.answer.choices[given]) : it.answer.type === 'order' ? (Array.isArray(given) ? given.map((g) => md(it.answer.items[g])).join(' &lt; ') : '') : K.typed(given);
       const li = h('li', { class: 'rv rv-' + r.st }, [
@@ -1430,6 +1486,17 @@
       }
       return li;
     });
+  }
+  function showReview(w, onDone) {
+    state.screen = 'review';
+    const m = D()[mockKey(w)];
+    if (!m || !m.done) { onDone(); return; }
+    const items = mockItems(w);
+    const other = w === 'B' ? D().mockA : null;
+    const counts = { right: 0, label: 0, form: 0, wrong: 0, blank: 0 };
+    items.forEach((it) => { const r = m.results[it.id]; if (r) counts[r.st === 'unreadable' ? 'wrong' : r.st] = (counts[r.st === 'unreadable' ? 'wrong' : r.st] || 0) + 1; });
+    const ST_TEXT = { right: 'Full credit', label: 'Label or cents: −1', form: 'Right value, wrong form: half', wrong: 'Not yet', blank: 'Blank', unreadable: 'Could not read it' };
+    const rows = reviewRows(items, m.ans, m.results);
     const misses = items.filter((it) => (m.results[it.id] || {}).st !== 'right');
     mountScreen(h('div', { class: 'review' }, [
       h('p', { class: 'eyebrow' }, 'Practice test ' + w + ' · scored review' + (m.timeUp ? ' · time ran out' : '')),
@@ -1449,6 +1516,199 @@
   }
 
   /* =====================================================================
+   * Conversion mastery: chains, mastery meters, speed rounds, the Gauntlet
+   * ===================================================================== */
+  const CONV = ['place-value', 'pct-dec', 'frac-dec', 'pct-frac', 'repeating', 'compare-mixed'];
+  const CHAIN_SKILLS = ['pct-dec', 'frac-dec', 'pct-frac', 'repeating'];
+  const MASTER_RUN = 5, MASTER_HARD = 2;
+  const masteryOf = (sk) => Object.assign({ streak: 0, l3: 0, best: 0, mastered: 0 }, D().mastery[sk] || {});
+  /** Mastery counts generated items answered right on the first try with no hint and no reveal. */
+  function noteMastery(item, clean) {
+    const sk = item.skill;
+    if (CONV.indexOf(sk) < 0 || !/^g:/.test(item.id) || /^g:gaunt/.test(item.id)) return null;
+    const m = masteryOf(sk);
+    if (clean) { m.streak++; if ((item.level || 1) >= 3) m.l3++; }
+    else { m.streak = 0; m.l3 = 0; if (m.mastered) { m.mastered = 0; m.lost = now(); } }
+    m.best = Math.max(m.best, m.streak);
+    if (!m.mastered && m.streak >= MASTER_RUN && m.l3 >= MASTER_HARD) m.mastered = now();
+    m.t = now();
+    D().mastery[sk] = m;
+    const c = D().conv || {};
+    D().conv = Object.assign(c, { t: now(), since: (c.since || 0) + 1 });
+    if (expert() && !c.expertAt) { D().conv.expertAt = now(); save([{ kind: 'expert', t: now(), payload: {} }]); }
+    return m;
+  }
+  const speedPassed = () => ((D().speed || {}).history || []).some((r) => r.pass);
+  const allMastered = () => CONV.every((s2) => masteryOf(s2).mastered);
+  const expert = () => allMastered() && speedPassed();
+  function convItem(sk, level, chainFirst) {
+    if (chainFirst && CHAIN_SKILLS.indexOf(sk) >= 0) {
+      for (let t = 0; t < 120; t++) {
+        const it = GEN.make('chain', genSeed++);
+        if (it && it.skill === sk && (!level || it.level === level)) { C.byId[it.id] = it; return it.id; }
+      }
+    }
+    const it = GEN.makeLevel(sk, level, genSeed);
+    genSeed += 41 * 7919;
+    if (!it) return null;
+    C.byId[it.id] = it;
+    return it.id;
+  }
+  /** Mastery practice: chains are the backbone; mastered skills come back every 5th item. */
+  function runMastery(skill, onDone) {
+    const LEVELS = [1, 2, 3, 2, 3, 3, 1, 3, 2, 3];
+    let k = 0, masteredNow = false;
+    const was = masteryOf(skill).mastered;
+    runSet({
+      title: 'Mastery: ' + skillName(skill), mode: 'master', queue: [], noTimeBox: true, leave: showHome,
+      more: () => {
+        k++;
+        const others = CONV.filter((s2) => s2 !== skill && masteryOf(s2).mastered);
+        if (others.length && k % 5 === 0) { const o = others.sort((a, b) => masteryOf(a).t - masteryOf(b).t)[0]; return convItem(o, LEVELS[k % LEVELS.length], k % 2 === 0); }
+        return convItem(skill, LEVELS[k % LEVELS.length], k % 2 === 1);
+      },
+      until: (S) => masteredNow || S.answered >= 30,
+      label: () => { const m = masteryOf(skill); return skillName(skill) + ' · ' + m.streak + '/' + MASTER_RUN + ' in a row' + (m.l3 < MASTER_HARD ? ' · hard ones ' + m.l3 + '/' + MASTER_HARD : ''); },
+      chipFor: (item) => (item.skill !== skill ? h('span', { class: 'chip' }, 'Re-check') : null),
+      onAnswer: (item, r) => { const m = noteMastery(item, r.clean); if (m && item.skill === skill && m.mastered && !was) masteredNow = true; },
+      doneLabel: 'Back',
+      onDone: (sum) => { onDone(sum); },
+      endNote: () => (masteryOf(skill).mastered ? note('good', 'Mastered: ' + skillName(skill) + '.', MASTER_RUN + ' in a row on the first try, including hard ones. It will come back now and then to stay sharp.') : null),
+    });
+  }
+  function masteryMeter(sk) {
+    const m = masteryOf(sk);
+    const boxes = [];
+    for (let i = 0; i < MASTER_RUN; i++) boxes.push(h('i', { class: i < (m.mastered ? MASTER_RUN : m.streak) ? 'on' : '' }));
+    return h('span', { class: 'mmeter' + (m.mastered ? ' is-done' : ''), role: 'img', 'aria-label': m.mastered ? 'mastered' : m.streak + ' of ' + MASTER_RUN + ' in a row' }, boxes);
+  }
+
+  /* ---------- timed sets: speed round (9 conversions, target 6:00), the Gauntlet, the 9-question section ---------- */
+  function speedIds() {
+    const plan = [['pct-dec', 1], ['frac-dec', 2], ['pct-frac', 3], ['repeating', 2], ['compare-mixed', 2], ['place-value', 1], ['pct-dec', 3], ['pct-frac', 2], ['frac-dec', 3]];
+    return shuffle(plan).map(([sk, lv]) => convItem(sk, lv, false)).filter(Boolean);
+  }
+  function sectionIds() {
+    const n = ((D().section || {}).history || []).length;
+    const src = n % 2 === 0 ? C.mock : C.mockB;
+    const ids = src.items.filter((id) => { const it = getItem(id); return it && it.kind !== 'word'; });
+    return ids.length ? ids.slice(0, 9) : speedIds();
+  }
+  const TIMED = {
+    speed: { title: 'Speed round', blurb: '9 conversions, scored like the test. Target: 6 minutes or less with at least 8 of 9 right.', target: 6 * 60000, ids: speedIds, pass: (r) => r.ms <= 6 * 60000 && r.right >= 8 },
+    gauntlet: { title: 'The Gauntlet', blurb: 'The 12 hardest conversion types. Clear it with at most 1 miss.', ids: () => GEN.gauntletIds(), pass: (r) => r.of - r.right <= 1 },
+    section: { title: '9-question section', blurb: 'The 9 short questions from a practice test, 2 points each, timed.', target: 12 * 60000, ids: sectionIds, pass: (r) => r.score >= 16 },
+  };
+  function runTimed(kind, onDone) {
+    const T = TIMED[kind];
+    const d = D();
+    const rec = d[kind] || (d[kind] = { t: now(), history: [], cur: null });
+    if (!rec.cur) {
+      mountScreen(h('div', { class: 'mock-intro' }, [
+        h('div', { class: 'qhead' }, [btn('Back', onDone, 'btn-quiet btn-small')]),
+        h('p', { class: 'eyebrow' }, 'Mr. B: “Speed up, right?”'),
+        h('h1', { class: 'wordmark', tabindex: '-1', 'data-focus': '' }, T.title),
+        h('p', { class: 'lede' }, T.blurb),
+        h('p', null, 'No feedback until the end. Then every miss opens its walkthrough.'),
+        rec.history.length ? timedHistory(kind) : null,
+        h('div', { class: 'end-actions' }, [btn('Start the clock', () => { rec.cur = { items: T.ids(), ans: {}, idx: 0, startedAt: now() }; rec.t = now(); save(); runTimed(kind, onDone); }, 'btn-primary')]),
+      ]));
+      return;
+    }
+    const cur = rec.cur;
+    const items = cur.items.map(getItem).filter(Boolean);
+    let saveT = null;
+    const persist = () => { if (saveT) clearTimeout(saveT); saveT = setTimeout(() => { rec.t = now(); save(); }, 800); };
+    function show() {
+      state.screen = 'timed';
+      const item = items[cur.idx];
+      const timerEl = h('span', { class: 'timer', role: 'timer' }, fmtClock(now() - cur.startedAt));
+      const last = cur.idx === items.length - 1;
+      const ctx = itemCard(item, { chips: [T.title + ' · ' + (cur.idx + 1) + ' of ' + items.length], noHint: true, mock: true, initial: cur.ans[item.id],
+        primaryLabel: last ? 'Finish' : 'Next', onPrimary: () => (last ? finish() : go(cur.idx + 1)), onChange: (v) => { cur.ans[item.id] = v; persist(); } });
+      ctx.primary.disabled = false;
+      ctx.bar.insertBefore(btn('Back', () => go(cur.idx - 1), 'btn-quiet btn-small', { disabled: cur.idx === 0 }), ctx.bar.firstChild);
+      const head = h('div', { class: 'qhead mock-head' }, [
+        btn('Plan', () => askLeave(showHome, 'Your answers are saved, but the clock keeps running.'), 'btn-quiet btn-small'),
+        h('div', { class: 'progress' }, [h('span', { class: 'ptext' }, T.title + ' · ' + (cur.idx + 1) + ' of ' + items.length)]),
+        timerEl, T.target ? h('span', { class: 'quiet' }, 'target ' + fmtClock(T.target)) : null, syncNode(),
+      ]);
+      mountScreen(h('div', { class: 'qscreen' }, [head, ctx.el]));
+      bindKeys(() => ctx);
+      const iv = setInterval(() => { const el = now() - cur.startedAt; timerEl.textContent = fmtClock(el); timerEl.classList.toggle('is-low', !!T.target && el > T.target); }, 1000);
+      state.cleanup.push(() => clearInterval(iv));
+      if (isFine() && item.answer.type === 'num') setTimeout(() => ctx.inp.focus(), 50);
+    }
+    function go(i) { if (i < 0 || i >= items.length) return; cur.idx = i; rec.t = now(); save(); show(); }
+    function finish() {
+      const results = {};
+      let score = 0, max = 0, right = 0;
+      items.forEach((it) => {
+        const r = gradeMockItem(it, cur.ans[it.id]);
+        results[it.id] = r; score += r.pts; max += r.max; if (r.st === 'right') right++;
+        record({ item: it.id, skill: it.skill, score: r.pts / r.max, ok: r.st === 'right', given: cur.ans[it.id], misc: r.misc || null, mode: kind });
+        noteMastery(it, r.st === 'right');
+      });
+      const ms = now() - cur.startedAt;
+      const res = { at: now(), ms, score, max, right, of: items.length };
+      res.pass = !!T.pass(res);
+      rec.history = (rec.history || []).concat([res]).slice(-30);
+      rec.last = { items: cur.items, ans: cur.ans, results, res };
+      rec.cur = null; rec.t = now();
+      save([{ kind: kind + '-done', t: now(), payload: res }]);
+      showTimedResult(kind, onDone);
+    }
+    show();
+  }
+  function timedHistory(kind) {
+    const hs = ((D()[kind] || {}).history || []).slice().reverse().slice(0, 8);
+    if (!hs.length) return null;
+    const best = hs.slice().sort((a, b) => b.right - a.right || a.ms - b.ms)[0];
+    return h('div', { class: 'thist' }, [
+      h('p', { class: 'note-label' }, 'Best: ' + best.right + ' of ' + best.of + ' in ' + fmtClock(best.ms)),
+      h('ol', { class: 'thist-list', reversed: true }, hs.map((r) => h('li', { class: r.pass ? 'is-pass' : '' }, [h('span', null, r.right + '/' + r.of), h('span', null, fmtClock(r.ms)), h('span', null, r.pass ? 'passed' : '')]))),
+    ]);
+  }
+  function showTimedResult(kind, onDone) {
+    state.screen = 'timed-result';
+    const T = TIMED[kind], rec = D()[kind], L = rec.last;
+    const items = L.items.map(getItem).filter(Boolean);
+    const r = L.res;
+    const msg = kind === 'gauntlet' ? (r.pass ? 'Cleared. These are the hardest conversion types on the test.' : 'Not cleared yet: ' + (r.of - r.right) + ' misses. Walk through them, then try again.')
+      : kind === 'speed' ? (r.pass ? 'Passed: fast and right.' : r.right < 8 ? 'Accuracy first: aim for 8 of 9 right, then the speed comes.' : 'Right enough. Now trim the time under 6:00.')
+        : (r.pass ? 'That section would score ' + r.score + ' of 18.' : 'That section: ' + r.score + ' of 18. Fix the misses below.');
+    mountScreen(h('div', { class: 'review' }, [
+      h('p', { class: 'eyebrow' }, T.title + ' · results'),
+      h('h1', { class: 'bigscore', tabindex: '-1', 'data-focus': '' }, [h('span', null, r.right + ' of ' + r.of), h('small', null, 'in ' + fmtClock(r.ms) + (kind !== 'gauntlet' ? ' · ' + r.score + ' / ' + r.max + ' pts' : ''))]),
+      h('p', { class: 'lede' }, msg),
+      expert() ? h('p', { class: 'expert-badge' }, 'Conversion expert') : null,
+      timedHistory(kind),
+      h('ol', { class: 'rv-list' }, reviewRows(items, L.ans, L.results)),
+      h('div', { class: 'end-actions' }, [btn('Try again', () => runTimed(kind, onDone), ''), btn('Done', onDone, 'btn-primary')]),
+    ]));
+  }
+
+  /** Home panel: mastery meters per conversion skill, speed round, Gauntlet, expert status. */
+  function masteryPanel() {
+    const sp = D().speed || {}, ga = D().gauntlet || {}, se = D().section || {};
+    const bestOf = (hs) => (hs || []).slice().sort((a, b) => b.right - a.right || a.ms - b.ms)[0];
+    const bs = bestOf(sp.history), bg = bestOf(ga.history), bse = bestOf(se.history);
+    return h('section', { class: 'mastery-card', 'aria-labelledby': 'mH' }, [
+      h('div', { class: 'mastery-top' }, [h('h2', { class: 'section-title', id: 'mH' }, 'Conversion mastery'), expert() ? h('span', { class: 'expert-badge' }, 'Expert') : h('span', { class: 'quiet' }, CONV.filter((s2) => masteryOf(s2).mastered).length + ' of 6 mastered')]),
+      h('ul', { class: 'mlist' }, CONV.map((sk) => h('li', { class: 'mrow' }, [
+        h('span', { class: 'sk-name' }, skillName(sk)), masteryMeter(sk),
+        btn(masteryOf(sk).mastered ? 'Keep sharp' : 'Practice', () => { state.inDay = false; runMastery(sk, showHome); }, 'btn-small'),
+      ]))),
+      h('p', { class: 'note-small' }, 'Mastered = 5 in a row on the first try, with at least 2 hard ones, no hints. Expert = all 6 mastered plus a passed speed round.'),
+      h('div', { class: 'timed-row' }, [
+        btn([h('span', { class: 't' }, 'Speed round'), h('span', { class: 's' }, bs ? 'Best ' + bs.right + '/9 in ' + fmtClock(bs.ms) + (speedPassed() ? ' · passed' : '') : '9 conversions, target 6:00')], () => { state.inDay = false; runTimed('speed', showHome); }, 'mode-btn'),
+        btn([h('span', { class: 't' }, 'The Gauntlet'), h('span', { class: 's' }, bg ? (ga.history.some((x) => x.pass) ? 'Cleared' : 'Best ' + bg.right + '/12') : '12 hardest types, 1 miss allowed')], () => { state.inDay = false; runTimed('gauntlet', showHome); }, 'mode-btn'),
+        btn([h('span', { class: 't' }, '9-question section'), h('span', { class: 's' }, bse ? 'Best ' + bse.score + '/18' : 'The short part of the test')], () => { state.inDay = false; runTimed('section', showHome); }, 'mode-btn'),
+      ]),
+    ]);
+  }
+
+  /* =====================================================================
    * The day: run the next task of the current block
    * ===================================================================== */
   function taskLabel(t) {
@@ -1459,6 +1719,9 @@
     if (t.k === 'mock') return (D()[mockKey(t.which)] && D()[mockKey(t.which)].startedAt ? 'Finish practice test ' : 'Practice test ') + t.which;
     if (t.k === 'review') return 'Review test ' + t.which;
     if (t.k === 'summary') return 'End-of-day summary';
+    if (t.k === 'master') return 'Master: ' + skillName(t.skill) + (masteryOf(t.skill).mastered ? ' ✓' : '');
+    if (t.k === 'speed') return 'Speed round';
+    if (t.k === 'gauntlet') return 'The Gauntlet';
     if (t.k === 'set') return { word: 'Word problems', convert: 'Conversion practice', ops: 'Operations practice', mixed: 'Mixed practice', retest: 'Re-test: skills from earlier today', mockfix: 'Fix your test A misses' }[t.focus] || 'Practice';
     return '';
   }
@@ -1501,6 +1764,9 @@
     else if (t.k === 'mock') { const m = D()[mockKey(t.which)]; if (m && m.startedAt) runMock(t.which, done); else showMockIntro(t.which, done); }
     else if (t.k === 'review') showReview(t.which, done);
     else if (t.k === 'summary') { completeTask(t); showSummary(); }
+    else if (t.k === 'master') { if (masteryOf(t.skill).mastered) done(); else runMastery(t.skill, done); }
+    else if (t.k === 'speed') runTimed('speed', done);
+    else if (t.k === 'gauntlet') runTimed('gauntlet', done);
     else if (t.k === 'set') {
       const q = setQueue(t);
       if (!q.length) { done(); return; }
@@ -1586,10 +1852,19 @@
         btn([h('span', { class: 't' }, 'For a parent'), h('span', { class: 's' }, 'Summary to copy')], showParent, 'mode-btn'),
       ]),
     ]);
+    const code = ST.currentCode();
+    const saveCard = ST.backend === 'jsonblob' ? h('section', { class: 'savecard', 'aria-labelledby': 'saveH' }, [
+      h('h2', { class: 'section-title', id: 'saveH' }, 'Your save code'),
+      code ? h('p', null, [h('span', { class: 'mono savecode' }, code), ' ', btn('Copy link', () => copyText(location.href.split('#')[0] + '#' + code, 'Link copied.'), 'btn-small')])
+        : h('p', { class: 'quiet' }, 'Not made yet: this device will get one as soon as it can reach the save service. Your work is safe on this device meanwhile.'),
+      syncNode(),
+      h('div', { class: 'end-actions' }, [btn('Use a code from another device', () => showCodeScreen({ canCancel: true }), 'btn-quiet btn-small'), btn('Back up my progress', showBackup, 'btn-quiet btn-small')]),
+    ]) : null;
     const foot = h('div', { class: 'home-foot' }, [
       h('span', null, ['Studied today: ', h('b', { 'data-active-min': '' }, String(activeMin())), ' min']),
       btn('Start over', askReset, 'btn-quiet'),
-      ST.cloud ? btn('Switch code', () => showCodeScreen({ canCancel: true }), 'btn-quiet') : null,
+      ST.backend === 'supabase' ? btn('Switch code', () => showCodeScreen({ canCancel: true }), 'btn-quiet') : null,
+      ST.backend !== 'jsonblob' ? btn('Back up my progress', showBackup, 'btn-quiet') : null,
       !ST.cloud && !ST.isPersistent() ? h('span', null, 'Progress is not being saved in this browser.') : null,
       C.fixture ? h('span', { class: 'fixture-note' }, 'Sample content (content files missing)') : null,
     ]);
@@ -1609,10 +1884,10 @@
         h('p', { class: 'quote' }, ['Mr. B: ', MR_B.labels, ' ', MR_B.rounding]),
       ]),
       h('p', { class: 'quote' }, ['Mr. B: ', MR_B.think]),
-      h('p', { class: 'quiet' }, 'Using Math Lab too? Do the check-in and the practice tests here; they match Mr. B’s test format.'),
+      saveCard,
     ]);
     state.homeNote = '';
-    mountScreen(h('div', { class: 'home' }, [hero, h('div', { class: 'home-side' }, [nextThree, h('section', { class: 'day-sec', 'aria-labelledby': 'dayH' }, [h('h2', { class: 'section-title', id: 'dayH' }, 'Suggested plan for the day'), path]), h('div', { class: 'side-col' }, [direct, skills, tools])]), foot]));
+    mountScreen(h('div', { class: 'home' }, [hero, h('div', { class: 'home-side' }, [nextThree, masteryPanel(), h('section', { class: 'day-sec', 'aria-labelledby': 'dayH' }, [h('h2', { class: 'section-title', id: 'dayH' }, 'Suggested plan for the day'), path]), h('div', { class: 'side-col' }, [direct, skills, tools])]), foot]));
     const onKey = (e) => { if (e.key === 'Enter' && !state.dialog && (!document.activeElement || ['BUTTON', 'INPUT', 'TEXTAREA', 'A', 'SUMMARY'].indexOf(document.activeElement.tagName) < 0)) { e.preventDefault(); runTask(); } };
     document.addEventListener('keydown', onKey);
     state.cleanup.push(() => document.removeEventListener('keydown', onKey));
@@ -1833,6 +2108,26 @@
     ]));
   }
 
+  function copyText(text, okMsg) {
+    try { navigator.clipboard.writeText(text).then(() => announceNote(okMsg), () => announceNote('Copy did not work here. Select the text and copy it.')); }
+    catch (e) { announceNote('Copy did not work here. Select the text and copy it.'); }
+  }
+  function announceNote(msg) { announce(msg); const n = document.querySelector('.copy-status'); if (n) n.textContent = msg; }
+  function showBackup() {
+    state.screen = 'backup';
+    const json = ST.backupJSON();
+    const ta = h('textarea', { class: 'worry-text mono', id: 'backupJson', rows: '14', readonly: true, 'aria-label': 'Progress backup (JSON)' });
+    ta.value = json;
+    mountScreen(h('div', { class: 'parent' }, [
+      h('div', { class: 'qhead' }, [btn('Plan', showHome, 'btn-quiet btn-small'), syncNode()]),
+      h('h1', { class: 'wordmark', tabindex: '-1', 'data-focus': '' }, 'Back up my progress'),
+      h('p', null, 'This is all of your progress as text. Copy it and paste it into an email or a note to keep a spare copy.'),
+      ta,
+      h('div', { class: 'end-actions' }, [btn('Copy', () => { ta.select(); copyText(json, 'Copied.'); }, 'btn-primary'), h('span', { class: 'copy-status', role: 'status' })]),
+      h('p', { class: 'quiet' }, (Math.round(json.length / 102.4) / 10) + ' KB'),
+    ]));
+  }
+
   /* =====================================================================
    * Practice code (cloud mode only)
    * ===================================================================== */
@@ -1855,7 +2150,7 @@
       h('h1', { class: 'wordmark', tabindex: '-1', 'data-focus': '' }, 'Type your practice code'),
       h('p', { id: 'codeHelp', class: 'code-help' }, 'Your parent’s link has it at the end, after the # sign. The same code works on the Chromebook and the phone.'),
       form,
-      btn('Make a new code', () => { input.value = ST.suggestCode(); input.focus(); }, 'btn-quiet'),
+      ST.backend === 'supabase' ? btn('Make a new code', () => { input.value = ST.suggestCode(); input.focus(); }, 'btn-quiet') : null,
       o.canCancel ? btn('Back', showHome, 'btn-quiet') : null,
     ]));
     if (isFine()) input.focus();
@@ -1866,6 +2161,7 @@
     startCloud(c);
   }
   async function startCloud(c) {
+    if (ST.backend === 'jsonblob') { await ST.open(c); state.ready = true; state.screen = 'loading'; showHome(); return; }
     state.screen = 'loading';
     mountScreen(h('p', { class: 'loading', role: 'status' }, 'Loading your progress.'));
     ST.setHash(c);
@@ -1879,18 +2175,20 @@
    * ===================================================================== */
   async function boot() {
     await loadContent();
+    if (ST.backend === 'jsonblob') { await ST.open(ST.resolveCode()); state.ready = true; showHome(); return; }
     if (!ST.cloud) { ST.openLocal(); state.ready = true; showHome(); return; }
     const c = ST.resolveCode();
     if (c) startCloud(c); else showCodeScreen();
   }
   window.addEventListener('hashchange', () => {
     if (!ST.cloud) return;
+    if (ST.backend === 'jsonblob' && !ST.currentCode()) return;
     const c = ST.hashCode();
     if (c && c !== ST.currentCode()) ST.leave().then(() => startCloud(c));
   });
   window.FDPApp = {
     state, C, D, M, getItem, runMock, showMockIntro, showLesson, runDiag, showBreak, showSummary, showStop, finishBlock, save, showHome, runTask, runSet, showLessons, showCar, showMorning, showParent, showReview, showResults, runLessonFlow,
-    day, nextTask, completeTask, startNextBlock, summaryText, skillState, mixedQueue, wordQueue,
+    day, nextTask, completeTask, startNextBlock, summaryText, skillState, mixedQueue, wordQueue, runMastery, runTimed, masteryOf, expert,
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })();

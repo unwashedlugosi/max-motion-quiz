@@ -1,7 +1,9 @@
 /* config.js — where progress is stored.
- * supabaseUrl:     your Supabase project URL, e.g. 'https://abcd1234.supabase.co'
- * supabaseAnonKey: the project's anon (public) key, from Project Settings → API
- * Leave either empty to keep progress in this browser only (local-only mode: no practice code, no syncing).
- * Run supabase/schema.sql in the Supabase SQL editor first.
+ * backend:
+ *   'jsonblob' – a no-account JSON store (default service https://jsonblob.com). The practice code is the blob id;
+ *                the first run on a device creates the blob and shows Max his save code.
+ *   'supabase' – Supabase REST (run supabase/schema.sql first; fill supabaseUrl and supabaseAnonKey).
+ *   ''         – this browser only (localStorage).
+ * Whatever the backend, progress is mirrored in localStorage, so a network or service failure never loses work.
  */
-window.FDP_CONFIG = { supabaseUrl: '', supabaseAnonKey: '' };
+window.FDP_CONFIG = { backend: 'jsonblob', jsonblobBase: 'https://jsonblob.com', supabaseUrl: '', supabaseAnonKey: '' };
