@@ -24,6 +24,18 @@
     { id: 'mission',  name: 'The Motion Mission robot' }
   ];
 
+  /* Tonight's focus: the six things missed on the graded review sheet. Questions carry focus: <id>.
+     demo: the question whose diagram is replayed by "Watch again" (its `after` plays after a moment).
+     watch: one short, observational caption for that replay. */
+  window.FOCUS_CONCEPTS = [
+    { id: 'rate-of-motion',    label: 'Rate of motion = speed',   demo: 'focus-rate-of-motion-02',    watch: 'Watch how the car\'s position changes with the clock.' },
+    { id: 'average-speed',     label: 'Average speed',            demo: 'focus-average-speed-03',     watch: 'Watch the whole trip: all the distance, all the time.' },
+    { id: 'velocity-direction', label: 'Velocity has direction',  demo: 'focus-velocity-direction-05', watch: 'Watch the arrow: its length is the speed, where it points is the direction.' },
+    { id: 'speed-or-velocity', label: 'Speed or velocity',        demo: 'focus-speed-or-velocity-04', watch: 'Watch what appears when the direction is added to the speed.' },
+    { id: 'turning-velocity',  label: 'Turning changes velocity', demo: 'focus-turning-velocity-05',  watch: 'Watch the dial and the arrow at each corner.' },
+    { id: 'show-work',         label: 'Show your work',           demo: 'focus-show-work-02',         watch: 'Watch the distance and the time, then the speed.' }
+  ];
+
   var Q = [];
 
   /* Robot hallway data from the Motion Mission handout: [time (s), distance (m)] */
@@ -184,7 +196,7 @@
       example: 'You sit on a school bus. The tree outside looks like it moves backward compared to you.'
     },
     {
-      id: 'motion-10', topic: 'motion', type: 'blank', difficulty: 1, source: 'review-1',
+      id: 'motion-10', focus: 'rate-of-motion', topic: 'motion', type: 'blank', difficulty: 1, source: 'review-1',
       prompt: 'Fill in the blanks from the word bank.',
       text: 'Motion is a change in ___. The rate of change of motion is ___.',
       bank: ['position', 'speed', 'time', 'direction', 'distance'],
@@ -330,7 +342,7 @@
      ============================================================ */
   Q.push(
     {
-      id: 'speed-01', topic: 'speed', type: 'mc', difficulty: 1,
+      id: 'speed-01', focus: 'rate-of-motion', topic: 'speed', type: 'mc', difficulty: 1,
       prompt: 'Which is the best definition of **speed**?',
       choices: [
         'How far an object moves in a certain amount of time',
@@ -376,7 +388,7 @@
       explain: 'A speed always has a distance unit over a time unit, like 12 miles per hour or 3 m/s.'
     },
     {
-      id: 'speed-04', topic: 'speed', type: 'mc', difficulty: 2,
+      id: 'speed-04', focus: 'average-speed', topic: 'speed', type: 'mc', difficulty: 2,
       prompt: 'What is **average speed**?',
       choices: [
         'Total distance divided by total time',
@@ -467,7 +479,7 @@
       explain: 'A good example moves at the same speed the whole time, like an escalator or a car on cruise control.'
     },
     {
-      id: 'speed-10', topic: 'speed', type: 'blank', difficulty: 1, source: 'review-3',
+      id: 'speed-10', focus: 'average-speed', topic: 'speed', type: 'blank', difficulty: 1, source: 'review-3',
       prompt: 'Fill in the blank from the word bank.',
       text: 'Total distance ÷ total time = ___ speed.',
       bank: ['average', 'constant', 'maximum', 'final'],
@@ -540,14 +552,14 @@
       explain: 'Speed units are distance over time. Kilometers and minutes are only a distance and a time by themselves.'
     },
     {
-      id: 'speed-16', topic: 'speed', type: 'tf', difficulty: 2,
+      id: 'speed-16', focus: 'average-speed', topic: 'speed', type: 'tf', difficulty: 2,
       prompt: 'True or false: To find average speed, add the speeds and divide by 2.',
       answer: false,
       falseFeedback: 'False. **Average speed** is total distance ÷ total time. You cannot just average two speeds, because the time spent at each speed may be different.',
       explain: '**Average speed** uses the whole trip: total distance ÷ total time. Averaging the speeds ignores how long you spent at each one.'
     },
     {
-      id: 'speed-17', topic: 'speed', type: 'mc', difficulty: 3,
+      id: 'speed-17', focus: 'average-speed', topic: 'speed', type: 'mc', difficulty: 3,
       prompt: 'A ball rolls 60 ft to a wall in 1 s, then bounces back 60 ft in 3 s. What is its **average speed** for the whole trip?',
       diagram: dg('bounce', { d1: 60, t1: 1, d2: 60, t2: 3, unit: 'ft', hide: ['totalD', 'totalT', 'avgS'] }, false),
       after: { hide: [] },
@@ -581,7 +593,7 @@
       explain: 'Add the time for both legs.'
     },
     {
-      id: 'speed-20', topic: 'speed', type: 'numeric', difficulty: 2, source: 'review-17',
+      id: 'speed-20', focus: 'show-work', topic: 'speed', type: 'numeric', difficulty: 2, source: 'review-17',
       prompt: 'The ball rolls 150 ft in total, and it takes 6 s in total. What is its **average speed**?',
       diagram: dg('bounce', { d1: 100, t1: 4, d2: 50, t2: 2, unit: 'ft', hide: ['totalD', 'totalT', 'avgS'] }, false),
       after: { hide: [] },
@@ -614,7 +626,7 @@
       explain: '**Constant speed** means the speed does not change. If something speeds up or slows down, its speed is changing.'
     },
     {
-      id: 'speed-23', topic: 'speed', type: 'tf', difficulty: 2,
+      id: 'speed-23', focus: 'turning-velocity', topic: 'speed', type: 'tf', difficulty: 2,
       prompt: 'True or false: An object with constant speed must be moving in a straight line.',
       answer: false,
       falseFeedback: 'False. A car can go around a circle at a steady 20 mph. Its speed is constant even though it keeps turning.',
@@ -627,7 +639,7 @@
      ============================================================ */
   Q.push(
     {
-      id: 'math-01', topic: 'math', type: 'numeric', difficulty: 2, source: 'review-4',
+      id: 'math-01', focus: 'show-work', topic: 'math', type: 'numeric', difficulty: 2, source: 'review-4',
       prompt: 'A car travels 180 km in 4.5 hours. What is its speed?',
       diagram: dg('race', { d: 180, t: 4.5, dUnit: 'km', tUnit: 'h', hide: ['s'] }, false),
       after: { hide: [] },
@@ -702,7 +714,7 @@
       explain: 'There are two halves in every second, so in 1 second it goes twice as far: 6 m. Speed = 3 ÷ 0.5 = 6 m/s.'
     },
     {
-      id: 'math-10', topic: 'math', type: 'numeric', difficulty: 3,
+      id: 'math-10', focus: 'average-speed', topic: 'math', type: 'numeric', difficulty: 3,
       prompt: 'A bike rides 12 km at 6 km/h, then 12 km at 12 km/h. What is the **average speed** for the whole ride?',
       numeric: { answer: 8, tolerance: 0.01, unit: 'km/h', unitChoices: ['km/h', 'km', 'h', 'km·h'] },
       steps: ['Time 1 = 12 ÷ 6 = 2 h', 'Time 2 = 12 ÷ 12 = 1 h', 'Total distance = 24 km, total time = 3 h', 'average speed = 24 ÷ 3 = 8 km/h'],
@@ -933,7 +945,7 @@
      ============================================================ */
   Q.push(
     {
-      id: 'velocity-01', topic: 'velocity', type: 'mc', difficulty: 1,
+      id: 'velocity-01', focus: 'velocity-direction', topic: 'velocity', type: 'mc', difficulty: 1,
       prompt: 'Which is the best definition of **velocity**?',
       choices: [
         'Describing a moving object using speed and direction',
@@ -979,7 +991,7 @@
       explain: 'A velocity example must have both parts: a speed with a unit, like 5 m/s, and a direction, like east.'
     },
     {
-      id: 'velocity-04', topic: 'velocity', type: 'blank', difficulty: 1, source: 'review-5',
+      id: 'velocity-04', focus: 'velocity-direction', topic: 'velocity', type: 'blank', difficulty: 1, source: 'review-5',
       prompt: 'Fill in the blanks from the word bank.',
       text: 'Velocity is describing a moving object using ___ and ___.',
       bank: ['speed', 'direction', 'distance', 'time', 'mass'],
@@ -988,7 +1000,7 @@
       hint: 'The words start with s and d.'
     },
     {
-      id: 'velocity-05', topic: 'velocity', type: 'blank', difficulty: 1, source: 'review-6',
+      id: 'velocity-05', focus: 'velocity-direction', topic: 'velocity', type: 'blank', difficulty: 1, source: 'review-6',
       prompt: 'Fill in the blanks from the word bank.',
       text: 'Velocity changes if there is a change in either its ___ or its ___.',
       bank: ['speed', 'direction', 'distance', 'time', 'mass'],
@@ -996,7 +1008,7 @@
       explain: 'If the speed changes, the velocity changes. If the direction changes, the **velocity** changes too. Only one of them has to change.'
     },
     {
-      id: 'velocity-06', topic: 'velocity', type: 'bins', difficulty: 2, source: 'review-7',
+      id: 'velocity-06', focus: 'speed-or-velocity', topic: 'velocity', type: 'bins', difficulty: 2, source: 'review-7',
       prompt: 'Is each one a **speed** (S) or a **velocity** (V)? Tap each card into a bin.',
       bins: {
         categories: [{ id: 'S', label: 'Speed (S)' }, { id: 'V', label: 'Velocity (V)' }],
@@ -1013,7 +1025,7 @@
       explain: 'A number and a unit alone is only a **speed**. If there is also a direction (North, Southwest, W), it is a **velocity**.'
     },
     {
-      id: 'velocity-07', topic: 'velocity', type: 'mc', difficulty: 1,
+      id: 'velocity-07', focus: 'speed-or-velocity', topic: 'velocity', type: 'mc', difficulty: 1,
       prompt: 'Which one is a **velocity**?',
       choices: ['55 mph Southwest', '55 mph', '55 miles', '55 seconds'],
       answer: 0,
@@ -1026,7 +1038,7 @@
       explain: 'Velocity needs a speed and a direction. Only 55 mph Southwest has both.'
     },
     {
-      id: 'velocity-08', topic: 'velocity', type: 'mc', difficulty: 2, source: 'review-9',
+      id: 'velocity-08', focus: 'turning-velocity', topic: 'velocity', type: 'mc', difficulty: 2, source: 'review-9',
       prompt: 'A car keeps a constant speed of 30 mph but turns onto a different street. Does its **velocity** change?',
       choices: [
         'Yes, because its direction changed',
@@ -1044,7 +1056,7 @@
       explain: 'Velocity changes if the speed OR the direction changes. A turn changes the direction, so the **velocity** changes.'
     },
     {
-      id: 'velocity-09', topic: 'velocity', type: 'blank', difficulty: 2, source: 'review-10',
+      id: 'velocity-09', focus: 'turning-velocity', topic: 'velocity', type: 'blank', difficulty: 2, source: 'review-10',
       prompt: 'Fill in the blank from the word bank.',
       text: 'A runner goes around a circle at constant speed. Her velocity is constantly changing because her ___ is constantly changing.',
       diagram: dg('velocity', { path: 'circle', speed: 6, unit: 'ft/s', showChecklist: true }, false),
@@ -1054,7 +1066,7 @@
       hint: 'Watch the arrow.'
     },
     {
-      id: 'velocity-10', topic: 'velocity', type: 'blank', difficulty: 2, source: 'review-11',
+      id: 'velocity-10', focus: 'turning-velocity', topic: 'velocity', type: 'blank', difficulty: 2, source: 'review-11',
       prompt: 'Fill in the blanks from the word bank.',
       text: 'He walked at 6 ft/s and turned corners without speeding up or slowing down. His speed ___ constant. His velocity ___ constant.',
       diagram: dg('velocity', { path: 'corners', speed: 6, unit: 'ft/s', showChecklist: true }, false),
@@ -1063,7 +1075,7 @@
       explain: 'His speed never changed, so the speed **was** constant. But he changed direction at each corner, so his velocity **was not** constant.'
     },
     {
-      id: 'velocity-11', topic: 'velocity', type: 'manipulate', difficulty: 2,
+      id: 'velocity-11', focus: 'turning-velocity', topic: 'velocity', type: 'manipulate', difficulty: 2,
       prompt: 'Look at the checklist under the picture while you choose a path.',
       goalText: 'Pick the path where the runner keeps the same speed but the direction keeps changing all the way around.',
       diagram: dg('velocity', { path: 'straight', speed: 6, unit: 'ft/s', heading: 'E', showChecklist: true }, true),
@@ -1079,7 +1091,7 @@
       explain: 'Going straight at a steady speed means neither the speed nor the direction changes. That is a **constant velocity**.'
     },
     {
-      id: 'velocity-13', topic: 'velocity', type: 'manipulate', difficulty: 3,
+      id: 'velocity-13', focus: 'turning-velocity', topic: 'velocity', type: 'manipulate', difficulty: 3,
       prompt: 'A jogger runs at a steady speed. Choose the path.',
       goalText: 'Pick the path where she jogs back and forth along a straight line.',
       diagram: dg('velocity', { path: 'straight', speed: 6, unit: 'ft/s', heading: 'E', showChecklist: true }, true),
@@ -1087,14 +1099,14 @@
       explain: 'Even on a straight line, turning around flips the direction. The speed is constant, but the **velocity** changes each time she turns.'
     },
     {
-      id: 'velocity-14', topic: 'velocity', type: 'tf', difficulty: 1,
+      id: 'velocity-14', focus: 'velocity-direction', topic: 'velocity', type: 'tf', difficulty: 1,
       prompt: 'True or false: Speed and velocity mean exactly the same thing.',
       answer: false,
       falseFeedback: 'False. Speed alone has no direction.\nVelocity: Describing a moving object using speed and direction',
       explain: '**Speed** is how fast. **Velocity** is how fast and which way. A car going 50 mph north and a car going 50 mph south have the same speed but different velocities.'
     },
     {
-      id: 'velocity-15', topic: 'velocity', type: 'mc', difficulty: 2,
+      id: 'velocity-15', focus: 'turning-velocity', topic: 'velocity', type: 'mc', difficulty: 2,
       prompt: 'A car drives around a roundabout at a steady speed. Which statement is true?',
       diagram: dg('velocity', { path: 'circle', speed: 6, unit: 'mph', showChecklist: true }, false),
       choices: [
@@ -1113,14 +1125,14 @@
       explain: 'Constant speed does not mean constant velocity. Going around a circle changes the direction every moment, so the **velocity** changes.'
     },
     {
-      id: 'velocity-16', topic: 'velocity', type: 'tf', difficulty: 2,
+      id: 'velocity-16', focus: 'turning-velocity', topic: 'velocity', type: 'tf', difficulty: 2,
       prompt: 'True or false: A runner who jogs in a straight line toward the east at a steady 3 m/s has a constant velocity.',
       answer: true,
       falseFeedback: 'It is true. Her speed is steady and her direction is steady, so the velocity does not change.',
       explain: '**Constant velocity** needs both a constant speed and a constant direction. East at 3 m/s the whole way has both.'
     },
     {
-      id: 'velocity-17', topic: 'velocity', type: 'multi', difficulty: 2,
+      id: 'velocity-17', focus: 'turning-velocity', topic: 'velocity', type: 'multi', difficulty: 2,
       prompt: 'Which of these have a **constant velocity**? Select all that apply.',
       choices: [
         'A car on cruise control driving straight down a long highway',
@@ -1132,7 +1144,7 @@
       explain: 'Constant velocity means steady speed in a straight line. The merry-go-round keeps changing direction. The bus is changing its speed.'
     },
     {
-      id: 'velocity-18', topic: 'velocity', type: 'multi', difficulty: 2,
+      id: 'velocity-18', focus: 'velocity-direction', topic: 'velocity', type: 'multi', difficulty: 2,
       prompt: 'Which of these make an object\'s **velocity** change? Select all that apply.',
       choices: [
         'Speeding up',
@@ -1144,7 +1156,7 @@
       explain: 'Velocity changes when the speed changes or the direction changes. Steady speed in a straight line is the only one that keeps velocity the same.'
     },
     {
-      id: 'velocity-19', topic: 'velocity', type: 'blank', difficulty: 3, source: 'review-17',
+      id: 'velocity-19', focus: 'turning-velocity', topic: 'velocity', type: 'blank', difficulty: 3, source: 'review-17',
       prompt: 'A ball rolls 100 ft to a wall in 4 s, bounces, and rolls back 50 ft in 2 s. Fill in the blanks from the word bank.',
       text: 'The ball ___ have a constant velocity, because its ___ changed at the wall.',
       diagram: dg('bounce', { d1: 100, t1: 4, d2: 50, t2: 2, unit: 'ft' }, false),
@@ -1153,7 +1165,7 @@
       explain: 'The ball turned around at the wall, so its direction changed. That means its **velocity** was not constant.'
     },
     {
-      id: 'velocity-20', topic: 'velocity', type: 'mc', difficulty: 3, source: 'review-17',
+      id: 'velocity-20', focus: 'turning-velocity', topic: 'velocity', type: 'mc', difficulty: 3, source: 'review-17',
       prompt: 'The ball rolls out at 25 ft/s and rolls back at 25 ft/s. Which statement is true?',
       diagram: dg('bounce', { d1: 100, t1: 4, d2: 50, t2: 2, unit: 'ft' }, false),
       choices: [
@@ -1172,7 +1184,7 @@
       explain: 'Same speed, opposite direction. Velocity includes direction, so the **velocity** changed even though the speed did not.'
     },
     {
-      id: 'velocity-21', topic: 'velocity', type: 'mc', difficulty: 2,
+      id: 'velocity-21', focus: 'velocity-direction', topic: 'velocity', type: 'mc', difficulty: 2,
       prompt: 'Car A drives 50 km/h north. Car B drives 50 km/h south. Which statement is true?',
       choices: [
         'They have the same speed but different velocities.',
@@ -1217,7 +1229,7 @@
       example: 'A car going around a roundabout at a steady 20 mph.'
     },
     {
-      id: 'velocity-24', topic: 'velocity', type: 'tf', difficulty: 2,
+      id: 'velocity-24', focus: 'turning-velocity', topic: 'velocity', type: 'tf', difficulty: 2,
       prompt: 'True or false: A car turning a corner at a steady 20 mph has a constant velocity.',
       answer: false,
       falseFeedback: 'False. The speed is steady, but the direction changes in the turn. So the velocity changes.',
@@ -2526,6 +2538,473 @@
     /* order: motion first, bins at the end */
     D.push(match1, match2);
     D.forEach(function (q) { Q.push(q); });
+  })();
+
+  /* ============================================================
+     TONIGHT'S FOCUS: new questions for the six things missed on the graded review sheet.
+     ids focus-<concept>-NN, source 'review-fix', focus: <concept id>. spot: true marks a
+     "spot the mistake" question (a focus round opens with one per concept that is not fixed yet).
+     Explanations say what can be SEEN first, and quote the teacher's definition only at the end.
+     ============================================================ */
+  (function () {
+    var VEL = 'Velocity: Describing a moving object using speed and direction';
+    var VELB = '**' + VEL + '**';
+    function F(concept, n, topic, o) {
+      o.id = 'focus-' + concept + '-' + (n < 10 ? '0' : '') + n;
+      o.topic = topic; o.source = 'review-fix'; o.focus = concept;
+      Q.push(o);
+    }
+
+    /* ---------------- rate-of-motion ---------------- */
+    F('rate-of-motion', 1, 'speed', {
+      type: 'mc', difficulty: 1, spot: true,
+      prompt: 'Spot the mistake. A student wrote: "The rate of change of motion is acceleration." Which word is wrong?',
+      choices: ['rate', 'change', 'motion', 'acceleration'],
+      answer: 3,
+      choiceFeedback: [
+        'The word "rate" is fine. The sentence asks how fast something changes.',
+        'The word "change" is fine. Motion is a change.',
+        'The word "motion" is fine. It is the thing that changes.',
+        'Right. "Acceleration" is the wrong word. The right word is speed.'
+      ],
+      explain: 'Picture a car rolling down a road. Its position changes, and how fast the position changes is its speed. Acceleration is about how fast the speed changes, which is a different thing.\nSo the rate of change of motion is **speed**.\n**Motion: Change in position**',
+      hint: 'What is changing in motion? The position.'
+    });
+    F('rate-of-motion', 2, 'speed', {
+      type: 'mc', difficulty: 1,
+      prompt: 'Watch the car. Finish the sentence: The rate of change of motion is ___.',
+      diagram: dg('race', { d: 100, t: 4, dUnit: 'm', tUnit: 's', hide: ['s'] }, false),
+      after: { hide: [] },
+      choices: ['acceleration', 'speed', 'distance', 'direction'],
+      answer: 1,
+      choiceFeedback: [
+        'Acceleration is how fast the speed changes. Here the car\'s position is what changes.',
+        'Right. The car\'s position changes by 25 m every second. That rate is its speed.',
+        'Distance is how far. A rate also needs time.',
+        'Direction is which way. It does not tell how fast the position changes.'
+      ],
+      explain: 'Look at the car and the clock. In every second the car\'s position changes by the same amount, 25 m. How fast the position changes is the speed: 100 ÷ 4 = 25 m/s.\n**Motion: Change in position**'
+    });
+    F('rate-of-motion', 3, 'speed', {
+      type: 'mc', difficulty: 2,
+      prompt: 'Look at the dots. Finish the sentence: The rate of change in velocity/speed is ___.',
+      diagram: dg('accel', { v0: 10, a: 2, seconds: 6, unit: 'm/s' }, false),
+      choices: ['speed', 'acceleration', 'distance', 'position'],
+      answer: 1,
+      choiceFeedback: [
+        'Speed is how fast the position changes. In this picture the speed itself is changing.',
+        'Right. The speed is changing, and the rate of that change is acceleration.',
+        'Distance is how far. It is not a rate of change.',
+        'Position is where something is. The rate its position changes is speed.'
+      ],
+      explain: 'Look at the dots. They spread farther apart each second, and the speedometer needle keeps climbing. The speed itself is changing, and the rate of that change is acceleration.\n**Acceleration: The rate of change in velocity/speed**'
+    });
+    F('rate-of-motion', 4, 'speed', {
+      type: 'blank', difficulty: 2,
+      prompt: 'Fill in the blanks from the word bank.',
+      text: 'Position changes at a rate called ___. Speed changes at a rate called ___.',
+      bank: ['speed', 'acceleration', 'velocity', 'distance', 'direction'],
+      answer: ['speed', 'acceleration'],
+      explain: 'Say it slowly. The position changes, and how fast it changes is the speed. Then the speed changes, and how fast it changes is the acceleration.\n**Acceleration: The rate of change in velocity/speed**',
+      hint: 'The words start with s and a.'
+    });
+    F('rate-of-motion', 5, 'speed', {
+      type: 'bins', difficulty: 2,
+      prompt: 'Is each card about **speed** or **acceleration**? Tap each card into a bin.',
+      bins: {
+        categories: [{ id: 'S', label: 'Speed' }, { id: 'A', label: 'Acceleration' }],
+        items: [
+          { text: 'How fast the position changes', answer: 'S' },
+          { text: 'How fast the speed changes', answer: 'A' },
+          { text: 'A cyclist goes 8 m/s', answer: 'S' },
+          { text: 'A car goes from 0 to 20 m/s in 5 s', answer: 'A' },
+          { text: 'The rate of change of motion', answer: 'S' },
+          { text: 'The rate of change in velocity/speed', answer: 'A' }
+        ]
+      },
+      explain: 'Read what each card says is changing. If it is the position, the rate is speed. If it is the speed, the rate is acceleration.\n**Acceleration: The rate of change in velocity/speed**'
+    });
+
+    /* ---------------- average-speed ---------------- */
+    F('average-speed', 1, 'speed', {
+      type: 'mc', difficulty: 1, spot: true,
+      prompt: 'Spot the mistake. A student wrote: "Dividing total distance by total time gives you the constant speed." Which word is wrong?',
+      choices: ['distance', 'time', 'constant', 'speed'],
+      answer: 2,
+      choiceFeedback: [
+        'The word "distance" is fine. You use all of it.',
+        'The word "time" is fine. You use all of it.',
+        'Right. "Constant" is the wrong word. The right word is average.',
+        'The word "speed" is fine. The answer is a speed.'
+      ],
+      explain: 'Think of a trip with stops and fast parts. The speed changes along the way, so it cannot be constant. All the distance divided by all the time gives one speed for the whole trip, the **average** speed.\n**Constant Speed: A speed that does not vary or change**',
+      hint: 'The word starts with a.'
+    });
+    F('average-speed', 2, 'speed', {
+      type: 'blank', difficulty: 1,
+      prompt: 'Fill in the blanks from the word bank.',
+      text: 'To find the ___ speed, divide the total ___ by the total ___.',
+      bank: ['average', 'constant', 'distance', 'time', 'direction'],
+      answer: ['average', 'distance', 'time'],
+      explain: 'Add up all the distance. Add up all the time. Divide the distance by the time. That one speed for the whole trip is the average speed.',
+      hint: 'The first word starts with a.'
+    });
+    F('average-speed', 3, 'speed', {
+      type: 'mc', difficulty: 1,
+      prompt: 'Watch the whole trip. The car goes 120 km in 3 hours. What is 120 ÷ 3 = 40 km/h called?',
+      diagram: dg('race', { d: 120, t: 3, dUnit: 'km', tUnit: 'h', hide: ['s'] }, false),
+      after: { hide: [] },
+      choices: ['Total time', 'Average speed', 'Acceleration', 'Direction'],
+      answer: 1,
+      choiceFeedback: [
+        'Total time is the 3 hours. It is one of the two numbers you divide with.',
+        'Right. All the distance divided by all the time is the average speed.',
+        'Acceleration is how fast the speed changes. Nothing here says the speed changed.',
+        'Direction is which way. The numbers here give no direction.'
+      ],
+      explain: 'Look at the flags and the clock. The car covers 120 km from the start flag to the finish flag, and the clock reads 3 hours. All the distance divided by all the time is 40 km/h, the average speed.'
+    });
+    F('average-speed', 4, 'speed', {
+      type: 'numeric', difficulty: 2,
+      prompt: 'A cyclist rides 20 km in 1 h, then 10 km in 2 h. What is her **average speed** for the whole ride?',
+      numeric: { answer: 10, tolerance: 0.01, unit: 'km/h', unitChoices: ['km/h', 'km', 'h', 'km·h'] },
+      steps: ['Total distance = 20 + 10 = 30 km', 'Total time = 1 + 2 = 3 h', 'average speed = 30 ÷ 3 = 10 km/h'],
+      explain: 'Add the distances to get 30 km. Add the times to get 3 h. Divide: 30 ÷ 3 = 10. The two leg speeds are 20 and 5, and averaging them gives 12.5, but that is wrong because she spent more time going slowly.',
+      hint: 'Add the distances and the times first.'
+    });
+    F('average-speed', 5, 'speed', {
+      type: 'mc', difficulty: 3,
+      prompt: 'A trip goes 30 km in 1 h, then 30 km in 3 h. What is the **average speed**?',
+      choices: ['20 km/h', '60 km/h', '15 km/h', '4 km/h'],
+      answer: 2,
+      choiceFeedback: [
+        'This is the average of 30 and 10. But the trip spent more time going slowly, so the average is lower.',
+        '60 km is the total distance. You still need to divide by the time.',
+        'Right. 60 ÷ 4 = 15 km/h.',
+        '4 h is the total time. Divide the distance by it.'
+      ],
+      explain: 'Add the distances: 60 km. Add the times: 4 h. Divide: 60 ÷ 4 = 15 km/h. The slow part took 3 of the 4 hours, so the average is closer to 10 than to 30.'
+    });
+
+    /* ---------------- velocity-direction ---------------- */
+    F('velocity-direction', 1, 'velocity', {
+      type: 'mc', difficulty: 1, spot: true,
+      prompt: 'Spot the mistake. A student wrote: "The velocity of a moving object describes its speed and distance." Which word is wrong?',
+      choices: ['velocity', 'describes', 'speed', 'distance'],
+      answer: 3,
+      choiceFeedback: [
+        'The word "velocity" is fine. It is the term being described.',
+        'The word "describes" is fine.',
+        'The word "speed" is fine. It is one of the two parts.',
+        'Right. "Distance" is the wrong word. The right word is direction.\n' + VEL
+      ],
+      explain: 'Compare two cards. "50 meters" tells how far, and "north" tells which way. Distance is how far. Direction is which way, and velocity needs the which-way part.\n' + VELB,
+      hint: 'The word starts with d, but it is not distance.'
+    });
+    F('velocity-direction', 2, 'velocity', {
+      type: 'mc', difficulty: 2, spot: true,
+      prompt: 'Spot the mistake. A student wrote: "Velocity changes if there is a change in either its speed or the distance of its movement." Which word is wrong?',
+      choices: ['changes', 'speed', 'distance', 'movement'],
+      answer: 2,
+      choiceFeedback: [
+        'The word "changes" is fine.',
+        'The word "speed" is fine. If the speed changes, the velocity changes.',
+        'Right. "Distance" is the wrong word. The right word is direction.\n' + VEL,
+        'The word "movement" is fine.'
+      ],
+      explain: 'Picture a runner who keeps the same speed but turns left. The arrow on the runner points a new way. What changed was the direction, not the distance. Velocity changes if the speed changes or the direction changes.\n' + VELB
+    });
+    F('velocity-direction', 3, 'velocity', {
+      type: 'mc', difficulty: 1,
+      prompt: 'Which of these is a **direction**?',
+      choices: ['50 meters', '3 seconds', 'North', '20 mph'],
+      answer: 2,
+      choiceFeedback: [
+        '50 meters tells how far, so it is a distance.',
+        '3 seconds tells how long, so it is a time.',
+        'Right. North tells which way.',
+        '20 mph tells how fast, so it is a speed.'
+      ],
+      explain: 'Check each choice. Can you point that way on a compass? Only north. Meters tell how far, seconds tell how long, and mph tells how fast.'
+    });
+    F('velocity-direction', 4, 'velocity', {
+      type: 'bins', difficulty: 2,
+      prompt: 'Does each card tell a **direction** (which way) or a **distance** (how far)? Tap each card into a bin.',
+      bins: {
+        categories: [{ id: 'dir', label: 'Direction' }, { id: 'dis', label: 'Distance' }],
+        items: [
+          { text: 'north', answer: 'dir' },
+          { text: '100 ft', answer: 'dis' },
+          { text: 'left', answer: 'dir' },
+          { text: '3 km', answer: 'dis' },
+          { text: 'southwest', answer: 'dir' },
+          { text: '12 cm', answer: 'dis' },
+          { text: 'toward the wall', answer: 'dir' },
+          { text: 'upward', answer: 'dir' }
+        ]
+      },
+      explain: 'Take each card and ask: does it tell which way, or how far? "North", "left" and "toward the wall" tell which way. "100 ft", "3 km" and "12 cm" tell how far. Direction is which way. Distance is how far.'
+    });
+    F('velocity-direction', 5, 'velocity', {
+      type: 'blank', difficulty: 2,
+      prompt: 'Look at the arrow on the runner. Fill in the blanks from the word bank.',
+      text: 'The arrow shows the speed and the ___. A direction tells which way. A distance tells how ___.',
+      diagram: dg('velocity', { path: 'straight', speed: 6, unit: 'ft/s', heading: 'NE', hide: ['direction', 'legend'] }, false),
+      after: { hide: [] },
+      bank: ['direction', 'distance', 'far', 'fast', 'long'],
+      answer: ['direction', 'far'],
+      explain: 'Look at the arrow. Its length shows the speed, and where it points shows the direction, northeast here. The arrow does not show how far the runner has gone.\n' + VELB
+    });
+
+    /* ---------------- speed-or-velocity ---------------- */
+    F('speed-or-velocity', 1, 'velocity', {
+      type: 'mc', difficulty: 2, spot: true,
+      prompt: 'Spot the mistake. A student looked at "12 cm per sec" and wrote V for velocity. What is the mistake?',
+      choices: [
+        'There is no direction in "12 cm per sec", so it is a speed (S)',
+        'The unit should be meters, not centimeters',
+        'It should be D for distance',
+        'There is no mistake. Every number with a unit is a velocity'
+      ],
+      answer: 0,
+      choiceFeedback: [
+        'Right. No direction is given, so it is only a speed.',
+        'The unit does not matter here. Centimeters per second is a fine speed unit.',
+        'Distance is how far. "Per sec" shows this is a rate, so it is a speed.',
+        'A number and a unit alone is a speed. A velocity needs a direction too.'
+      ],
+      explain: 'Read the card again. It has a number (12) and a unit (cm per sec), but no word like north, left or toward the door. With no direction, it is only a speed, so the answer is S.\n' + VELB
+    });
+    F('speed-or-velocity', 2, 'velocity', {
+      type: 'bins', difficulty: 2,
+      prompt: 'Is each one a **speed** (S) or a **velocity** (V)? Tap each card into a bin.',
+      bins: {
+        categories: [{ id: 'S', label: 'Speed (S)' }, { id: 'V', label: 'Velocity (V)' }],
+        items: [
+          { text: '4 ft/s', answer: 'S' },
+          { text: '4 ft/s toward the door', answer: 'V' },
+          { text: '15 km/h', answer: 'S' },
+          { text: '15 km/h southeast', answer: 'V' },
+          { text: '90 mph', answer: 'S' },
+          { text: '2 m/s downward', answer: 'V' }
+        ]
+      },
+      explain: 'Look for a direction on each card. "Toward the door", "southeast" and "downward" are directions, so those cards are velocities. A card with only a number and a unit is a speed.\n' + VELB
+    });
+    F('speed-or-velocity', 3, 'velocity', {
+      type: 'mc', difficulty: 1,
+      prompt: 'Which one is only a **speed**?',
+      choices: ['3 m/s North', '55 mph Southwest', '12 cm per sec', '2 cm/s W'],
+      answer: 2,
+      choiceFeedback: [
+        'This one has a direction, North, so it is a velocity.',
+        'This one has a direction, Southwest, so it is a velocity.',
+        'Right. No direction is given, so it is a speed.',
+        'This one has a direction, W for west, so it is a velocity.'
+      ],
+      explain: 'Scan each choice for a direction word or letter. North, Southwest and W are directions. "12 cm per sec" has none, so it is only a speed.'
+    });
+    F('speed-or-velocity', 4, 'velocity', {
+      type: 'mc', difficulty: 1,
+      prompt: 'A runner goes 6 ft/s. What do you add to the speed to make it a velocity?',
+      diagram: dg('velocity', { path: 'straight', speed: 6, unit: 'ft/s', heading: 'E', hide: ['direction', 'legend'] }, false),
+      after: { hide: [] },
+      choices: ['A direction, like east', 'A time, like 2 seconds', 'A distance, like 12 feet', 'Nothing. It is already a velocity'],
+      answer: 0,
+      choiceFeedback: [
+        'Right. Speed plus a direction is a velocity.',
+        'A time does not tell which way the runner goes.',
+        'A distance tells how far, not which way.',
+        '6 ft/s alone has no direction, so it is only a speed.'
+      ],
+      explain: 'Look at the readout beside the dial. It gives only 6 ft/s, and that is a speed. When the direction, east, is added, the speed becomes a velocity.\n' + VELB
+    });
+    F('speed-or-velocity', 5, 'velocity', {
+      type: 'multi', difficulty: 2,
+      prompt: 'Which of these are **velocities**? Select all that apply.',
+      choices: ['9 m/s west', '9 m/s', '25 mph north', '25 miles'],
+      answers: [0, 2],
+      choiceFeedback: [
+        'A speed and a direction, west. This is a velocity.',
+        'A speed with no direction. This is only a speed.',
+        'A speed and a direction, north. This is a velocity.',
+        'Miles are a distance, not a speed.'
+      ],
+      explain: 'Check each one for a speed and a direction. "9 m/s west" and "25 mph north" have both. "9 m/s" has no direction, and "25 miles" is only a distance.\n' + VELB
+    });
+
+    /* ---------------- turning-velocity ---------------- */
+    F('turning-velocity', 1, 'velocity', {
+      type: 'mc', difficulty: 2, spot: true,
+      prompt: 'Spot the mistake. A student read: "He walked at 6 ft/s and turned corners without speeding up or slowing down. His velocity (was, was not) constant." The student circled "was". What is the mistake?',
+      diagram: dg('velocity', { path: 'corners', speed: 6, unit: 'ft/s', showChecklist: true, hide: ['checklist'] }, false),
+      after: { hide: [] },
+      choices: [
+        'The student missed that turning changes the direction, so the velocity changed',
+        'The student missed that the speed changed at each corner',
+        'The student missed that 6 ft/s is a distance, not a speed',
+        'There is no mistake. The same speed always means the same velocity'
+      ],
+      answer: 0,
+      choiceFeedback: [
+        'Right. The direction changed at each corner, so the velocity was not constant.',
+        'The problem says he did not speed up or slow down, so the speed stayed the same.',
+        'ft/s is feet per second, which is a speed unit.',
+        'The speed stayed the same, but velocity also includes direction, and that changed.'
+      ],
+      explain: 'Watch the arrow at each corner. The runner keeps the same speed, but the arrow swings to point a new way. The checklist says speed constant: yes, and velocity constant: no. If the direction changes, the velocity changes.\n' + VELB
+    });
+    F('turning-velocity', 2, 'velocity', {
+      type: 'mc', difficulty: 3, spot: true,
+      prompt: 'Spot the mistake. A ball rolled 100 ft in 4 s, bounced off the wall, then rolled 50 ft in 2 s. A student read: "The ball (did, did not) have a constant velocity." The student circled "did". What is the mistake?',
+      diagram: dg('bounce', { d1: 100, t1: 4, d2: 50, t2: 2, unit: 'ft', hide: ['avgS'] }, false),
+      choices: [
+        'The student missed that the ball turned around at the wall, so its direction changed',
+        'The student missed that the second leg was faster than the first',
+        'The student missed that the ball rolled farther the second time',
+        'There is no mistake. Both legs were 25 ft/s, so the velocity was constant'
+      ],
+      answer: 0,
+      choiceFeedback: [
+        'Right. The ball turned around, so the direction changed and the velocity was not constant.',
+        'Both legs were 25 ft/s (100 ÷ 4 and 50 ÷ 2), so the speed was the same.',
+        'The ball rolled 100 ft first and 50 ft second, so it rolled less the second time.',
+        'The speed was the same, but velocity also includes direction, and that flipped at the wall.'
+      ],
+      explain: 'Look at the arrow before the wall and after it. Both arrows are the same length, so the speed is the same, 25 ft/s. But the first arrow points toward the wall and the second points back. The direction changed, so the velocity changed.\n' + VELB
+    });
+    F('turning-velocity', 3, 'velocity', {
+      type: 'manipulate', difficulty: 2,
+      prompt: 'Use the path buttons. Watch the arrow and the checklist.',
+      goalText: 'Choose the path with corners. Watch the arrow at each corner.',
+      diagram: dg('velocity', { path: 'straight', speed: 6, unit: 'ft/s', heading: 'E', showChecklist: true }, true),
+      goal: { key: 'path', op: 'eq', value: 'corners' },
+      explain: 'Look at the arrow at each corner. It swings to point a new way, while the dial stays at the same speed. The checklist says speed constant: yes, velocity constant: no. A change in direction is a change in velocity.\n' + VELB
+    });
+    F('turning-velocity', 4, 'velocity', {
+      type: 'manipulate', difficulty: 2,
+      prompt: 'Use the path buttons and the speed slider.',
+      goalText: 'Make the runner go around a circle at 8 ft/s. Then read the checklist.',
+      diagram: dg('velocity', { path: 'corners', speed: 4, unit: 'ft/s', showChecklist: true, range: { speed: [0, 12, 1] } }, true),
+      goal: [{ key: 'path', op: 'eq', value: 'circle' }, { key: 'speed', op: 'eq', value: 8 }],
+      explain: 'Look at the arrow going around the circle. Its length stays the same, so the speed is steady, but it points a new way every moment. The checklist says velocity constant: no.\n' + VELB
+    });
+    F('turning-velocity', 5, 'velocity', {
+      type: 'mc', difficulty: 2,
+      prompt: 'The runner goes around the corners at 6 ft/s without speeding up or slowing down. Which checklist is right?',
+      diagram: dg('velocity', { path: 'corners', speed: 6, unit: 'ft/s', showChecklist: true, hide: ['checklist'] }, false),
+      after: { hide: [] },
+      choices: [
+        'Speed constant: yes. Velocity constant: yes.',
+        'Speed constant: no. Velocity constant: no.',
+        'Speed constant: yes. Velocity constant: no.',
+        'Speed constant: no. Velocity constant: yes.'
+      ],
+      answer: 2,
+      choiceFeedback: [
+        'The arrow points a new way at every corner, so the velocity is not constant.',
+        'The dial stays at 6 ft/s the whole way, so the speed is constant.',
+        'Right. The dial never moves, and the arrow keeps turning.',
+        'It is the other way around. The speed is the steady part.'
+      ],
+      explain: 'Watch the dial and the arrow. The dial stays at 6 ft/s, so the speed is constant. The arrow swings to a new direction at each corner, so the velocity is not constant. The checklist shows the same.\n' + VELB
+    });
+    F('turning-velocity', 6, 'velocity', {
+      type: 'mc', difficulty: 3,
+      prompt: 'Watch the ball. Did the ball have a constant velocity?',
+      diagram: dg('bounce', { d1: 100, t1: 4, d2: 50, t2: 2, unit: 'ft', hide: ['velocity', 'avgS'] }, false),
+      after: { hide: [] },
+      choices: [
+        'Yes. Both legs were 25 ft/s',
+        'No. The ball turned around at the wall, so its direction changed',
+        'Yes. The ball never stopped',
+        'No. The ball sped up on the way back'
+      ],
+      answer: 1,
+      choiceFeedback: [
+        'Both legs were 25 ft/s, so the speed was constant. But velocity also needs the direction to stay the same.',
+        'Right. Same speed, but the direction flipped at the wall.',
+        'Not stopping does not matter. The direction changed, and that changes the velocity.',
+        'Both legs were 25 ft/s (100 ÷ 4 and 50 ÷ 2). The ball did not speed up.'
+      ],
+      explain: 'Look at the arrow before the wall and after it. They are the same length, so the speed did not change. But they point opposite ways. The note at the bottom says it too: the direction flipped.\n' + VELB
+    });
+    F('turning-velocity', 7, 'velocity', {
+      type: 'tf', difficulty: 2,
+      prompt: 'True or false: If something keeps the same speed but turns, its velocity stays the same.',
+      answer: false,
+      falseFeedback: 'False. When something turns, its direction changes, so its velocity changes even though the speed is the same.\n' + VEL,
+      explain: 'Picture a car going around a corner at a steady 20 mph. The speedometer needle does not move, but the car points a new way. Same speed, new direction, new velocity.\n' + VELB
+    });
+
+    /* ---------------- show-work ---------------- */
+    F('show-work', 1, 'math', {
+      type: 'mc', difficulty: 1, spot: true,
+      prompt: 'Spot the mistake. A ball rolled 150 ft in 6 s. For the speed, a student wrote only "25" on the answer line. What is missing?',
+      choices: [
+        'The work: S = d ÷ t = 150 ÷ 6 = 25 ft/s',
+        'A picture of the ball',
+        'A longer answer with more words',
+        'The number 25 written three times'
+      ],
+      answer: 0,
+      choiceFeedback: [
+        'Right. The work shows the formula, the numbers, the answer and the unit.',
+        'A picture does not show the math.',
+        'More words do not help. The steps of the math do.',
+        'Writing the answer again does not show how it was found.'
+      ],
+      explain: 'Compare the two answers. "25" shows only the end. "S = d ÷ t = 150 ÷ 6 = 25 ft/s" shows the formula, the numbers, the answer and the unit. A teacher can follow each step, so show all of them.'
+    });
+    F('show-work', 2, 'math', {
+      type: 'blank', difficulty: 2,
+      prompt: 'The ball rolled 100 ft, bounced, then rolled 50 ft. That is 150 ft in 6 s. Fill in the work.',
+      text: 'S = d ÷ t = ___ ÷ ___ = ___ ft/s',
+      diagram: dg('bounce', { d1: 100, t1: 4, d2: 50, t2: 2, unit: 'ft', hide: ['avgS'] }, false),
+      after: { hide: [] },
+      bank: ['150', '6', '25', '100', '4', '50', '2'],
+      answer: ['150', '6', '25'],
+      explain: 'Watch the ball. The odometer ends at 150 ft and the stopwatch ends at 6 s. Put d = 150 and t = 6 into the formula, then divide: 150 ÷ 6 = 25. The answer always gets a unit, ft/s.',
+      hint: 'Use the total distance and the total time.'
+    });
+    F('show-work', 3, 'math', {
+      type: 'blank', difficulty: 2,
+      prompt: 'On the way back the ball rolled 50 ft in 2 s. Fill in the work.',
+      text: 'S = d ÷ t = ___ ÷ ___ = ___ ft/s',
+      diagram: dg('bounce', { d1: 100, t1: 4, d2: 50, t2: 2, unit: 'ft', hide: ['avgS', 'totalD', 'totalT'] }, false),
+      bank: ['50', '2', '25', '100', '4', '150', '6'],
+      answer: ['50', '2', '25'],
+      explain: 'Look at the label for leg 2: 50 ft in 2 s. Those are d and t. 50 ÷ 2 = 25, so the speed on the way back is 25 ft/s, the same as on the way out.'
+    });
+    F('show-work', 4, 'math', {
+      type: 'blank', difficulty: 2,
+      prompt: 'A car travels 180 km in 4.5 hours. Fill in the work.',
+      text: 'S = d ÷ t = ___ ÷ ___ = ___ km/h',
+      diagram: dg('race', { d: 180, t: 4.5, dUnit: 'km', tUnit: 'h', hide: ['s'] }, false),
+      after: { hide: [] },
+      bank: ['180', '4.5', '40', '45', '90', '4'],
+      answer: ['180', '4.5', '40'],
+      explain: 'Look at the flags and the clock. The car goes 180 km in 4.5 h, so d = 180 and t = 4.5. Divide: 180 ÷ 4.5 = 40. The unit is km per hour, km/h.',
+      hint: 'Dividing by 4.5 is the same as doubling both numbers: 360 ÷ 9.'
+    });
+    F('show-work', 5, 'math', {
+      type: 'mc', difficulty: 2,
+      prompt: 'A ball rolled 150 ft in 6 s. Which shows the work correctly?',
+      choices: [
+        'S = d × t = 150 × 6 = 900 ft/s',
+        '25',
+        'S = d ÷ t = 150 ÷ 6 = 25 ft/s',
+        'S = d ÷ t = 100 ÷ 4 = 25 ft/s'
+      ],
+      answer: 2,
+      choiceFeedback: [
+        'Speed uses division, not multiplication.',
+        '25 is the right number, but there is no formula, no numbers and no unit. Show the work.',
+        'Right. It has the formula, the numbers, the answer and the unit.',
+        'The math works, but 100 and 4 are only the first leg. The whole trip is 150 ft in 6 s.'
+      ],
+      explain: 'Check each choice for four parts: the formula, the numbers from the problem, the answer, and the unit. Only one choice has all four with the right numbers: S = d ÷ t = 150 ÷ 6 = 25 ft/s.'
+    });
   })();
 
   window.QUESTION_BANK = Q;

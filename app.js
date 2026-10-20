@@ -18,6 +18,10 @@
   const DRILL_AHEAD = 3;        // the drill always has this many questions lined up, so a miss can return 3 later
   const DEFS_IN_QUIZ = 3;       // every regular quiz carries this many key-definition questions
   const KNOWN_FORMATS = 3;      // "known cold" needs right answers in at least this many different formats
+  const FOCUS_LEN = 12;         // "Tonight's focus" round: questions per round (missed ones come back on top of this)
+  const FOCUS_IN_QUIZ = 2;      // every regular quiz carries this many focus questions (from concepts not fixed yet)
+  const FOCUS_NEEDS = 2;        // "fixed" needs right answers on at least this many different questions
+  const FOCUS_EXTRA = 2;        // a focus round never grows by more than this many questions beyond FOCUS_LEN to fit retries
 
   const root = document.getElementById('app');
   const liveEl = document.getElementById('live');
@@ -118,7 +122,7 @@
   }
   function sheetQuestions(prefix) {
     return BANK.map((q, i) => ({ q, i }))
-      .filter((x) => typeof x.q.source === 'string' && x.q.source.indexOf(prefix) === 0)
+      .filter((x) => typeof x.q.source === 'string' && x.q.source.indexOf(prefix) === 0 && x.q.source !== 'review-fix') // review-fix: extra practice, not a sheet item
       .sort((a, b) => sourceOrder(a.q.source) - sourceOrder(b.q.source) || a.i - b.i)
       .map((x) => x.q);
   }
@@ -302,6 +306,94 @@
       return out;
     }
     return { list, has, status, all, coldCount, allCold, inText, pick, pickForQuiz, STATE_TEXT };
+  })();
+
+  /* =====================================================================
+   * Tonight's focus: the six things missed on the graded review sheet (content.js, FOCUS_CONCEPTS;
+   * questions carry focus: <concept id>). A concept is "fixed" when, from the per-question history already
+   * kept (and synced) by the Store:
+   *   - at least FOCUS_NEEDS different questions of that concept have a right latest first attempt, and
+   *   - the most recent first attempt at any question of that concept was right.
+   * Nothing extra is stored, so it follows Max to every device.
+   * ===================================================================== */
+  const Focus = (function () {
+    const list = () => (Array.isArray(window.FOCUS_CONCEPTS) ? window.FOCUS_CONCEPTS : []);
+    const STATE_TEXT = { not: 'not yet', getting: 'getting there', fixed: 'fixed' };
+    const has = () => list().length > 0 && BANK.some((q) => q.focus);
+    const usable = (q) => q.focus && q.type !== 'short'; // no typing in a focus round
+
+    function status(id) {
+      const passed = new Set();
+      let lastAt = -1, lastOk = false, tried = 0;
+      BANK.forEach((q) => {
+        if (q.focus !== id) return;
+        const rec = Store.get(q.id);
+        if (!rec || !rec.hist.length) return;
+        tried++;
+        const ok = rec.hist[rec.hist.length - 1] >= 1;
+        if (ok) passed.add(q.id);
+        if (rec.lastSeen >= lastAt) { lastAt = rec.lastSeen; lastOk = ok; }
+      });
+      const fixed = passed.size >= FOCUS_NEEDS && lastOk;
+      return { fixed, passed, tried, state: fixed ? 'fixed' : passed.size >= 1 ? 'getting' : 'not' };
+    }
+    function all() { const o = {}; list().forEach((c) => { o[c.id] = status(c.id); }); return o; }
+    const fixedCount = (st) => list().filter((c) => (st || all())[c.id].fixed).length;
+    const allFixed = () => { const st = all(); return list().length > 0 && list().every((c) => st[c.id].fixed); };
+    const questionWeight = (q) => {
+      const rec = Store.get(q.id);
+      let w = 1;
+      if (!rec || !rec.hist.length) w *= 1.5;
+      else w *= rec.hist[rec.hist.length - 1] >= 1 ? 0.5 : 1.6;
+      return w;
+    };
+    function weighted(cands, ws) {
+      let r = Math.random() * ws.reduce((a, b) => a + b, 0), k = 0;
+      for (; k < cands.length; k++) { r -= ws[k]; if (r <= 0) break; }
+      return cands[Math.min(k, cands.length - 1)];
+    }
+    /** One weighted pick. o: { states, exclude:Set(ids), avoid:Set(concept ids), lastFmt (question type), termCount:{concept:n} }
+     *  Concepts not fixed yet come first; a fixed concept's question is used only when nothing else is left
+     *  (for example to separate two questions of the one concept that is still open). */
+    function pick(o) {
+      const states = o.states || all();
+      let cands = BANK.filter((q) => usable(q) && states[q.focus] && !(o.exclude && o.exclude.has(q.id)) && !(o.avoid && o.avoid.has(q.focus)));
+      const open = cands.filter((q) => !states[q.focus].fixed);
+      if (open.length) cands = open;
+      if (!cands.length) return null;
+      return weighted(cands, cands.map((q) => {
+        const st = states[q.focus];
+        let w = st.fixed ? 1 : st.state === 'getting' ? 2.6 : 3;
+        w *= questionWeight(q);
+        if (q.spot) w *= 0.4;                                                                // the opening questions already used one
+        if (o.lastFmt && q.type === o.lastFmt) w *= 0.4;                                      // mix the formats
+        w *= Math.pow(0.6, (o.termCount && o.termCount[q.focus]) || 0);
+        return w;
+      }));
+    }
+    /** The opening "spot the mistake" question for one concept. */
+    function pickSpot(id, exclude) {
+      const cands = BANK.filter((q) => usable(q) && q.focus === id && q.spot && !(exclude && exclude.has(q.id)));
+      return cands.length ? weighted(cands, cands.map(questionWeight)) : null;
+    }
+    /** n questions for a regular quiz: different concepts, concepts not fixed yet first. */
+    function pickForQuiz(n) {
+      const out = [], concepts = new Set(), exclude = new Set();
+      const states = all();
+      while (out.length < n) {
+        const q = pick({ states, exclude, avoid: concepts });
+        if (!q) break;
+        out.push(q); concepts.add(q.focus); exclude.add(q.id);
+      }
+      return out;
+    }
+    /** The question whose diagram "Watch again" replays for a concept. */
+    function demoFor(c) {
+      const q = c && c.demo ? byId[c.demo] : null;
+      if (q && q.diagram) return q;
+      return BANK.find((x) => c && x.focus === c.id && x.diagram) || null;
+    }
+    return { list, has, status, all, fixedCount, allFixed, pick, pickSpot, pickForQuiz, demoFor, STATE_TEXT };
   })();
 
   /* =====================================================================
@@ -606,8 +698,9 @@
   }
   function closeDialog() {
     if (!state.dialog) return;
-    const { scrim, prev } = state.dialog;
+    const { scrim, prev, destroy } = state.dialog;
     state.dialog = null;
+    if (destroy) { try { destroy(); } catch (e) { console.error('dialog cleanup failed', e); } }
     scrim.remove();
     try { if (prev && prev.focus && document.contains(prev)) prev.focus(); } catch (e) { /* ignore */ }
   }
@@ -654,9 +747,11 @@
   function buildIds(mode, opts) {
     if (mode === 'quiz') {
       // at least 3 key-definition questions (terms not yet known cold first), the rest from everything else
+      // plus FOCUS_IN_QUIZ focus questions (concepts not fixed yet first); the rest come from everything else
       const defs = Defs.pickForQuiz(DEFS_IN_QUIZ);
-      const rest = pickWeighted(BANK.filter((q) => q.topic !== 'defs'), QUIZ_LEN - defs.length, true);
-      return shuffle(defs.concat(rest)).map((q) => q.id);
+      const foc = Focus.has() ? Focus.pickForQuiz(FOCUS_IN_QUIZ) : [];
+      const rest = pickWeighted(BANK.filter((q) => q.topic !== 'defs' && !q.focus), QUIZ_LEN - defs.length - foc.length, true);
+      return shuffle(defs.concat(foc, rest)).map((q) => q.id);
     }
     if (mode === 'topic') return pickWeighted(BANK.filter((q) => q.topic === opts.topic), QUIZ_LEN, false).map((q) => q.id);
     if (mode === 'review') return sheetQuestions('review-').map((q) => q.id);
@@ -665,34 +760,41 @@
     if (mode === 'ids') return (opts.ids || []).filter((id) => byId[id]);
     return [];
   }
-  const modeLabel = (mode, opts) => ({ quiz: 'Mixed quiz', defs: 'Key definitions', review: 'Review sheet', mission: 'Motion Mission', fix: 'Fix my mistakes' }[mode] || (mode === 'topic' ? topicName(opts.topic) : 'Practice'));
+  const modeLabel = (mode, opts) => ({ quiz: 'Mixed quiz', defs: 'Key definitions', review: 'Review sheet', mission: 'Motion Mission', fix: 'Fix my mistakes', focus: "Tonight's focus" }[mode] || (mode === 'topic' ? topicName(opts.topic) : 'Practice'));
 
-  /* ---- Key definitions drill: ~14 questions from the defs topic only, planned a few at a time ---- */
-  const termOfEntry = (e) => (e && byId[e.id] ? byId[e.id].term : undefined);
+  /* ---- Planned rounds: the Key definitions drill (keyed by term) and Tonight's focus (keyed by concept).
+   * A few questions are lined up at a time, using what he knows now; a miss comes back 3 later. ---- */
+  const planStates = (round) => (round.focusRound ? Focus.all() : Defs.all());
+  const planPick = (round, o) => (round.focusRound ? Focus.pick(o) : Defs.pick(o));
+  const planKey = (round, q) => (q ? (round.focusRound ? q.focus : q.term) : undefined);
+  const planFmt = (round, q) => (q ? (round.focusRound ? q.type : q.fmt) : null);
+  const keyOfEntry = (round, e) => (e && byId[e.id] ? planKey(round, byId[e.id]) : undefined);
   function fillDrill(round, minAhead) {
     const firsts = () => round.queue.filter((x) => !x.retry);
     const ahead = () => round.queue.length - round.idx - 1;
     // minAhead: a miss near the end needs other questions after it, or it would come straight back (round gets 1 or 2 extra)
     while (ahead() < (minAhead || 0) || (firsts().length < round.total && ahead() < DRILL_AHEAD)) {
+      if (round.focusRound && firsts().length >= FOCUS_LEN + FOCUS_EXTRA) break; // many misses: stop adding, the retries just go at the end
       const last = round.queue[round.queue.length - 1];
       const lastQ = last ? byId[last.id] : null;
       const termCount = {};
-      firsts().forEach((x) => { const t = termOfEntry(x); if (t) termCount[t] = (termCount[t] || 0) + 1; });
-      const q = Defs.pick({
-        states: Defs.all(), exclude: new Set(firsts().map((x) => x.id)),
-        avoid: lastQ && lastQ.term ? new Set([lastQ.term]) : null, lastFmt: lastQ ? lastQ.fmt : null, termCount,
+      firsts().forEach((x) => { const t = keyOfEntry(round, x); if (t) termCount[t] = (termCount[t] || 0) + 1; });
+      const q = planPick(round, {
+        states: planStates(round), exclude: new Set(firsts().map((x) => x.id)),
+        avoid: lastQ && planKey(round, lastQ) ? new Set([planKey(round, lastQ)]) : null, lastFmt: planFmt(round, lastQ), termCount,
       });
       if (!q) break;
       round.queue.push({ id: q.id });
     }
     round.total = Math.max(round.total, firsts().length);
   }
-  /** Where a missed drill question returns: 3 positions later, nudged so the same term is never next to itself.
-   *  If the end of the queue leaves no such spot, one more question (a different term) is lined up first. */
+  /** Where a missed planned-round question returns: 3 positions later, nudged so the same term/concept is never next to itself.
+   *  If the end of the queue leaves no such spot, one more question (a different term/concept) is lined up first. */
   function drillRetryPos(round, q) {
     const base = round.idx + RETRY_GAP;
+    const key = planKey(round, q);
     const spot = () => {
-      const ok = (p) => p > round.idx && p <= round.queue.length && termOfEntry(round.queue[p - 1]) !== q.term && termOfEntry(round.queue[p]) !== q.term;
+      const ok = (p) => p > round.idx && p <= round.queue.length && keyOfEntry(round, round.queue[p - 1]) !== key && keyOfEntry(round, round.queue[p]) !== key;
       const tries = [base, base + 1, base + 2, base - 1, base + 3];
       for (let i = 0; i < tries.length; i++) if (ok(tries[i])) return tries[i];
       return -1;
@@ -700,11 +802,11 @@
     // first choice is exactly 3 later: if a neighbour there is the same term and has not been shown yet, swap it for another question
     const reroll = (i) => {
       const e = round.queue[i];
-      if (!e || e.retry || termOfEntry(e) !== q.term) return;
+      if (!e || e.retry || keyOfEntry(round, e) !== key) return;
       const prev = round.queue[i - 1], next = round.queue[i + 1];
-      const nq = Defs.pick({
-        states: Defs.all(), exclude: new Set(round.queue.filter((x) => !x.retry).map((x) => x.id)),
-        avoid: new Set([q.term, termOfEntry(prev), termOfEntry(next)].filter(Boolean)), lastFmt: prev && byId[prev.id] ? byId[prev.id].fmt : null,
+      const nq = planPick(round, {
+        states: planStates(round), exclude: new Set(round.queue.filter((x) => !x.retry).map((x) => x.id)),
+        avoid: new Set([key, keyOfEntry(round, prev), keyOfEntry(round, next)].filter(Boolean)), lastFmt: prev && byId[prev.id] ? planFmt(round, byId[prev.id]) : null,
       });
       if (nq) round.queue[i] = { id: nq.id };
     };
@@ -714,11 +816,12 @@
       const p = spot();
       if (p > 0) return p;
       const firsts = round.queue.filter((x) => !x.retry);
+      if (round.focusRound && firsts.length >= FOCUS_LEN + FOCUS_EXTRA) break;
       const last = round.queue[round.queue.length - 1];
       const lastQ = last ? byId[last.id] : null;
-      const nq = Defs.pick({
-        states: Defs.all(), exclude: new Set(firsts.map((x) => x.id)),
-        avoid: new Set([q.term, lastQ && lastQ.term].filter(Boolean)), lastFmt: lastQ ? lastQ.fmt : null,
+      const nq = planPick(round, {
+        states: planStates(round), exclude: new Set(firsts.map((x) => x.id)),
+        avoid: new Set([key, lastQ && planKey(round, lastQ)].filter(Boolean)), lastFmt: planFmt(round, lastQ),
       });
       if (!nq) break;
       round.queue.push({ id: nq.id });
@@ -733,6 +836,21 @@
       if (!Defs.has()) { state.homeNote = 'There are no questions for that yet.'; showHome(); return; }
       Store.noteRound();
       state.round = { mode, opts, label: modeLabel(mode, opts), queue: [], idx: 0, results: [], total: DRILL_LEN, retryOK: true, drill: true, finishEarly: false };
+      fillDrill(state.round);
+      showQuestion();
+      return;
+    }
+    if (mode === 'focus') {
+      if (!Focus.has()) { state.homeNote = 'There are no questions for that yet.'; showHome(); return; }
+      Store.noteRound();
+      const st = Focus.all();
+      const open = Focus.list().filter((c) => !st[c.id].fixed).map((c) => c.id);
+      state.round = { mode, opts, label: modeLabel(mode, opts), queue: [], idx: 0, results: [], total: FOCUS_LEN, retryOK: true, drill: true, focusRound: true, finishEarly: false, startedFixed: open.length === 0 };
+      // open with one "spot the mistake" question for every concept that is not fixed yet
+      shuffle(open).forEach((cid) => {
+        const q = Focus.pickSpot(cid, new Set(state.round.queue.map((x) => x.id)));
+        if (q) state.round.queue.push({ id: q.id });
+      });
       fillDrill(state.round);
       showQuestion();
       return;
@@ -836,6 +954,28 @@
     ]);
   }
 
+  function focusChip(c, st) {
+    const label = `${c.label}: ${Focus.STATE_TEXT[st.state]}`;
+    return h('li', { class: 'fchip is-' + st.state, title: label, 'aria-label': label }, [
+      h('span', { class: 'dmark', 'aria-hidden': 'true', html: st.fixed ? ICON.check : '' }),
+      h('span', { 'aria-hidden': 'true' }, c.label),
+    ]);
+  }
+  /** "Tonight's focus" card, first thing on the home screen: how many of the six review-sheet misses are fixed. */
+  function focusCard() {
+    if (!Focus.has()) return null;
+    const L = Focus.list(), st = Focus.all();
+    const n = Focus.fixedCount(st);
+    return h('section', { class: 'focus-card' + (n === L.length ? ' is-done' : ''), 'aria-labelledby': 'focusH' }, [
+      h('h2', { class: 'focus-title', id: 'focusH' }, "Tonight's focus: fix the review sheet misses"),
+      h('div', { class: 'focus-head' }, [
+        h('p', { class: 'focus-count', 'data-focus-count': String(n) }, [h('strong', null, `${n} of ${L.length}`), ' fixed']),
+        h('button', { class: 'btn btn-primary defs-go focus-go', type: 'button', onclick: () => startRound('focus') }, n === L.length ? 'Check them again' : 'Fix them'),
+      ]),
+      h('ul', { class: 'defs-chips focus-chips', 'aria-label': 'The six things to fix and how each one is going' }, L.map((c) => focusChip(c, st[c.id]))),
+    ]);
+  }
+
   function showHome() {
     leaveQuestion();
     closeDialog();
@@ -850,10 +990,11 @@
       h('h1', { class: 'wordmark', tabindex: '-1', 'data-focus': '' }, ["Max's ", h('span', null, 'Motion'), ' Test Prep']),
       syncNode(),
       state.homeNote ? h('p', { class: 'home-note', role: 'status' }, state.homeNote) : null,
+      focusCard(),
       defsCard(),
       h('button', { class: 'btn btn-primary start-btn', type: 'button', onclick: () => startRound('quiz') }, [
         h('span', { class: 't' }, 'Start a quiz'),
-        h('span', { class: 's' }, `${Math.min(QUIZ_LEN, BANK.length)} questions, mixed.` + (Defs.has() ? ` ${DEFS_IN_QUIZ} are key definitions.` : '') + ' Leans on what you missed.'),
+        h('span', { class: 's' }, `${Math.min(QUIZ_LEN, BANK.length)} questions, mixed.` + (Defs.has() ? ` ${DEFS_IN_QUIZ} are key definitions` + (Focus.has() ? `, ${FOCUS_IN_QUIZ} are tonight's focus.` : '.') : '') + ' Leans on what you missed.'),
       ]),
       h('div', { class: 'home-actions' }, [
         missedN
@@ -943,7 +1084,7 @@
     ctx.bar = bar;
 
     const promptEl = h('div', { class: 'qprompt' }, [
-      h('div', { class: 'chips' }, [h('span', { class: 'chip' }, topicName(q.topic)), item.retry ? h('span', { class: 'chip retry' }, item.retry === 'recheck' ? 'To clear it' : "Let's try that one again") : null]),
+      h('div', { class: 'chips' }, [h('span', { class: 'chip' }, topicName(q.topic)), q.spot ? h('span', { class: 'chip' }, 'Spot the mistake') : null, item.retry ? h('span', { class: 'chip retry' }, item.retry === 'recheck' ? 'To clear it' : "Let's try that one again") : null]),
       h('h2', { class: 'prompt', id: 'qprompt', tabindex: '-1', 'data-focus': '', html: rich(q.prompt) }),
     ]);
 
@@ -1048,7 +1189,8 @@
     res.retryScheduled = retryScheduled;
     if (round.drill) {
       fillDrill(round);                              // keep the next few lined up, using what he knows now
-      if (Defs.allCold()) round.finishEarly = true;  // all 7 known cold: the round ends with the success screen
+      if (round.focusRound) { if (!round.startedFixed && Focus.allFixed()) round.finishEarly = true; } // all 6 fixed: success screen
+      else if (Defs.allCold()) round.finishEarly = true;  // all 7 known cold: the round ends with the success screen
     }
 
     if (q.after && ctx.inst) { try { ctx.inst.setParams(q.after); } catch (e) { console.error('after failed', e); } }
@@ -1695,12 +1837,74 @@
     ]);
   }
 
+  /** "Watch again": the focus concept's key demo in a small panel. Its diagram plays, then its `after` animation. */
+  function openWatch(c) {
+    const q = Focus.demoFor(c);
+    if (!q || !window.Diagrams) return;
+    closeDialog();
+    const prev = document.activeElement;
+    let inst = null, timer = null;
+    const host = h('div', { class: 'diagram-host' });
+    const stop = () => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (inst) { try { inst.destroy(); } catch (e) { console.error('destroy failed', e); } inst = null; }
+    };
+    const play = () => {
+      stop();
+      inst = window.Diagrams.mount(host, Object.assign({}, q.diagram, { interactive: false }), {});
+      if (q.after) timer = setTimeout(() => { timer = null; try { if (inst) inst.setParams(q.after); } catch (e) { console.error('after failed', e); } }, reduceMotion() ? 0 : 2800);
+    };
+    const btns = [
+      h('button', { class: 'btn', type: 'button', onclick: play }, 'Replay'),
+      h('button', { class: 'btn btn-primary', type: 'button', onclick: () => closeDialog() }, 'Close'),
+    ];
+    const dlg = h('div', { class: 'dialog watch', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'watchT' }, [
+      h('h2', { id: 'watchT' }, c.label),
+      h('div', { class: 'watch-diagram' }, host),
+      c.watch ? h('p', { class: 'watch-cap' }, c.watch) : null,
+      h('div', { class: 'btns' }, btns),
+    ]);
+    const scrim = h('div', { class: 'scrim' }, dlg);
+    scrim.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        const i = btns.indexOf(document.activeElement);
+        e.preventDefault();
+        btns[(i + (e.shiftKey ? btns.length - 1 : 1) + btns.length) % btns.length].focus();
+      }
+    });
+    document.body.appendChild(scrim);
+    state.dialog = { scrim, prev, destroy: stop };
+    play();
+    btns[1].focus();
+  }
+  /** End of a focus round: one row per concept with its state and a "Watch again" button. Minimal text. */
+  function focusSummary() {
+    const st = Focus.all();
+    return h('section', { class: 'study focus-summary', 'aria-labelledby': 'focusSumH' }, [
+      h('h2', { class: 'section-title', id: 'focusSumH' }, 'Where each one stands'),
+      h('ul', { class: 'study-list' }, Focus.list().map((c) => {
+        const s = st[c.id];
+        const demo = Focus.demoFor(c);
+        return h('li', { class: 'study-row focus-row is-' + s.state, 'data-concept': c.id }, [
+          h('div', { class: 'study-top' }, [
+            h('span', { class: 'study-term' }, c.label),
+            h('span', { class: 'dstate is-' + s.state }, [h('span', { class: 'dmark', 'aria-hidden': 'true', html: s.fixed ? ICON.check : '' }), Focus.STATE_TEXT[s.state]]),
+          ]),
+          demo ? h('button', { class: 'btn btn-small watch-btn', type: 'button', 'aria-label': 'Watch again: ' + c.label, onclick: () => openWatch(c) }, 'Watch again') : null,
+        ]);
+      })),
+    ]);
+  }
+
   function showEnd() {
     leaveQuestion();
     state.screen = 'end';
     const round = state.round;
-    const isDrill = round.mode === 'defs';
-    const allCold = isDrill && Defs.allCold();
+    const isFocus = round.mode === 'focus';
+    const isDrill = round.mode === 'defs' || isFocus;
+    const allCold = round.mode === 'defs' && Defs.allCold();
+    const allFixed = isFocus && Focus.allFixed();
+    const focusN = isFocus ? Focus.fixedCount() : 0;
     const res = round.results;
     const total = res.length;
     const pts = res.reduce((a, r) => a + r.score, 0);
@@ -1711,7 +1915,7 @@
     const line = frac >= 0.9 ? 'Strong round.' : frac >= 0.7 ? 'Good work. The misses below are the ones to look at.' : frac >= 0.4 ? 'Some of this is solid. The misses below show what to work on.' : 'Rough one, and that is useful: now you know exactly what to fix.';
     const missedN = Store.missedIds().length;
 
-    const left = isDrill ? studyCard() : h('section', null, [
+    const left = isFocus ? focusSummary() : isDrill ? studyCard() : h('section', null, [
       h('h2', { class: 'section-title' }, 'By topic'),
       h('ul', { class: 'trows' }, Object.keys(byTopic).map((id) => {
         const t = byTopic[id];
@@ -1729,15 +1933,16 @@
         ]);
       })) : h('p', null, 'Every question was right the first time.'),
     ]);
-    const again = round.mode === 'review' || round.mode === 'mission' ? 'Go through it again' : isDrill ? 'Drill again' : 'Another round';
-    const coldN = isDrill ? Defs.coldCount() : 0;
-    const topLine = allCold ? 'Read the card out loud one more time, then you are set.'
+    const again = round.mode === 'review' || round.mode === 'mission' ? 'Go through it again' : isFocus ? (allFixed ? 'Practice again' : 'Fix them again') : isDrill ? 'Drill again' : 'Another round';
+    const coldN = round.mode === 'defs' ? Defs.coldCount() : 0;
+    const topLine = isFocus ? (allFixed ? 'All six are fixed. Watch any of them once more, then you are set.' : `${focusN} of ${Focus.list().length} fixed. Another round moves the rest along.`)
+      : allCold ? 'Read the card out loud one more time, then you are set.'
       : isDrill ? `${coldN} of ${Defs.list().length} known cold. Drill again to move the rest along. ${line}` : line;
-    const screen = h('div', { class: 'endscreen' + (isDrill ? ' is-drill' : '') }, [
+    const screen = h('div', { class: 'endscreen' + (isDrill ? ' is-drill' : '') + (isFocus ? ' is-focus' : '') }, [
       h('div', { class: 'endtop' }, [
         h('p', { class: 'eyebrow' }, round.label),
-        allCold
-          ? h('h1', { class: 'bigscore bigscore--text', tabindex: '-1', 'data-focus': '' }, [h('span', null, `All ${Defs.list().length} known cold`)])
+        allCold || allFixed
+          ? h('h1', { class: 'bigscore bigscore--text', tabindex: '-1', 'data-focus': '' }, [h('span', null, allFixed ? `All ${Focus.list().length} fixed` : `All ${Defs.list().length} known cold`)])
           : h('h1', { class: 'bigscore', tabindex: '-1', 'data-focus': '' }, [h('span', null, fmtScore(pts)), h('small', null, `out of ${total}`)]),
         h('p', null, topLine),
         h('div', { class: 'end-actions' }, [
@@ -1749,7 +1954,7 @@
       h('div', { class: 'endgrid' }, [left, right]),
     ]);
     mountScreen(screen);
-    announce(allCold ? `All ${Defs.list().length} definitions known cold.` : `Round finished. ${fmtScore(pts)} out of ${total}.`);
+    announce(allFixed ? `All ${Focus.list().length} focus points fixed.` : allCold ? `All ${Defs.list().length} definitions known cold.` : `Round finished. ${fmtScore(pts)} out of ${total}.`);
   }
 
   /* =====================================================================
@@ -1820,7 +2025,7 @@
     Fuzzy, Store, QuizStore: QS, state, Types,
     showHome, startRound, next, finalize,
     startIds(ids) { startRound('ids', { ids }); },
-    Defs, startDrill() { startRound('defs'); },
+    Defs, Focus, startDrill() { startRound('defs'); }, startFocus() { startRound('focus'); }, openWatch,
     bank: () => BANK, evalGoal, parseNum, validateAI, buildGradePrompt,
     isAiOff: () => aiOff, whenSampleReady: () => samplePromise,
   };
