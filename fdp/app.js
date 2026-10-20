@@ -336,10 +336,18 @@
   function paintSync(el) {
     const s2 = ST.status();
     el.setAttribute('data-state', s2);
+    if (ST.backend === 'claudedb') {
+      const ds = ST.dbState();
+      el.textContent = s2 === 'saved' ? 'Saved to the cloud ✓ · ' + ago(ST.lastSaved())
+        : s2 === 'saving' ? 'Saving to the cloud…'
+          : ds === 'waiting' ? 'Saved on this device. Connecting to the cloud…' : 'Saved on this device only, will upload when it can';
+      return;
+    }
     if (ST.backend === 'jsonblob') {
       const c = ST.currentCode();
       el.textContent = s2 === 'saved' ? 'Saved to the cloud ✓ (code ' + c + ') · ' + ago(ST.lastSaved())
-        : s2 === 'saving' && c ? 'Saving to the cloud…' : 'Saved on this device only, will upload when it can';
+        : s2 === 'saving' && c ? 'Saving to the cloud…'
+          : 'Saved on this device only, will upload when it can' + (ST.cloudReason && ST.cloudReason() ? ' (cloud: ' + ST.cloudReason() + ')' : '');
       return;
     }
     el.textContent = SYNC_TEXT[s2] || '';
@@ -1853,7 +1861,12 @@
       ]),
     ]);
     const code = ST.currentCode();
-    const saveCard = ST.backend === 'jsonblob' ? h('section', { class: 'savecard', 'aria-labelledby': 'saveH' }, [
+    const saveCard = ST.backend === 'claudedb' ? h('section', { class: 'savecard', 'aria-labelledby': 'saveH' }, [
+      h('h2', { class: 'section-title', id: 'saveH' }, 'Where your work is saved'),
+      syncNode(),
+      h('p', { class: 'quiet' }, 'Every answer is kept on this device right away and copied to the cloud, where a parent can see it.'),
+      h('div', { class: 'end-actions' }, [btn('Back up my progress', showBackup, 'btn-quiet btn-small'), btn('For a parent', showParent, 'btn-quiet btn-small')]),
+    ]) : ST.backend === 'jsonblob' ? h('section', { class: 'savecard', 'aria-labelledby': 'saveH' }, [
       h('h2', { class: 'section-title', id: 'saveH' }, 'Your save code'),
       code ? h('p', null, [h('span', { class: 'mono savecode' }, code), ' ', btn('Copy link', () => copyText(location.href.split('#')[0] + '#' + code, 'Link copied.'), 'btn-small')])
         : h('p', { class: 'quiet' }, 'Not made yet: this device will get one as soon as it can reach the save service. Your work is safe on this device meanwhile.'),
@@ -2080,6 +2093,11 @@
     if (by.weak.length) L.push('  Needs work: ' + by.weak.join(', '));
     const mis = miscList().slice(0, 8);
     if (mis.length) L.push('Mix-ups seen: ' + mis.map((m) => miscLabel(m.id) + (m.n > 1 ? ' (×' + m.n + ')' : '')).join('; '));
+    L.push('Conversion mastery: ' + CONV.map((s2) => skillName(s2) + (masteryOf(s2).mastered ? ' ✓' : ' ' + masteryOf(s2).streak + '/5')).join('; ') + (expert() ? ' (expert)' : ''));
+    const sp = (d.speed || {}).history || [];
+    if (sp.length) L.push('Speed rounds: ' + sp.slice(-5).map((r) => r.right + '/' + r.of + ' in ' + fmtClock(r.ms) + (r.pass ? ' ✓' : '')).join(', '));
+    const ga = (d.gauntlet || {}).history || [];
+    if (ga.length) L.push('Gauntlet: ' + (ga.some((r) => r.pass) ? 'cleared' : 'best ' + Math.max(...ga.map((r) => r.right)) + '/12') + ' (' + ga.length + ' tries)');
     const done = C.lessons.filter((l) => d.lessons[l.id] && d.lessons[l.id].done).map((l) => l.title);
     if (done.length) L.push('Lessons finished: ' + done.join('; '));
     ['A', 'B'].forEach((w) => { const m = d[mockKey(w)]; if (m && m.done) L.push('Practice test ' + w + ': ' + m.score + ' / ' + m.max + ' (' + Math.round(m.score / m.max * 100) + '%), ' + mins(m.doneAt - m.startedAt) + ' min' + (m.timer ? ', timed' : '')); });
@@ -2088,6 +2106,7 @@
   }
   function showParent() {
     state.screen = 'parent';
+    const missHost = h('div', { class: 'pcard' }, h('p', { class: 'quiet' }, 'Loading…'));
     const text = summaryText();
     const pre = h('pre', { class: 'summary-text', id: 'sumText', tabindex: '0' }, text);
     const status = h('span', { class: 'copy-status', role: 'status' });
@@ -2100,12 +2119,26 @@
     const code = ST.currentCode();
     const link = code ? location.href.replace(/[^/]*(#.*)?$/, '') + 'parent.html#' + code : null;
     mountScreen(h('div', { class: 'parent' }, [
-      h('div', { class: 'qhead' }, [btn('Plan', showHome, 'btn-quiet btn-small')]),
-      h('h1', { class: 'wordmark', tabindex: '-1', 'data-focus': '' }, 'Summary for a parent'),
+      h('div', { class: 'qhead' }, [btn('Plan', showHome, 'btn-quiet btn-small'), syncNode()]),
+      h('h1', { class: 'wordmark', tabindex: '-1', 'data-focus': '' }, 'For a parent'),
+      progressCompare(),
       pre,
       h('div', { class: 'end-actions' }, [copy, status]),
-      link ? h('p', { class: 'quiet' }, ['Live parent view (read-only): ', h('span', { class: 'mono' }, link)]) : h('p', { class: 'quiet' }, 'Parent view on this device: open parent.html next to this page.'),
+      ST.backend === 'claudedb' ? null : link ? h('p', { class: 'quiet' }, ['Live parent view (read-only): ', h('span', { class: 'mono' }, link)]) : h('p', { class: 'quiet' }, 'Parent view on this device: open parent.html next to this page.'),
+      h('h2', { class: 'section-title' }, 'Recent misses'),
+      missHost,
     ]));
+    ST.recentEvents(300).then((evs) => {
+      const miss = (evs || []).filter((e) => e && (e.kind === 'answer') && e.correct === false).slice(0, 40);
+      const local = D().recent.slice().reverse().map((r) => ({ at: new Date(r.t).toISOString(), itemId: r.item, skill: r.skill, given: r.given, misconception: r.misc }));
+      const rows = miss.length ? miss : local.slice(0, 40);
+      missHost.replaceChildren(rows.length ? h('ul', { class: 'pmiss' }, rows.map((e) => {
+        const it = getItem(e.itemId);
+        let when = '';
+        try { when = new Date(e.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (x) { when = ''; }
+        return h('li', null, [h('span', { class: 'soft' }, when + ' '), h('b', null, skillName(e.skill || (it && it.skill) || '')), it ? ': ' + K.plain(it.prompt).slice(0, 120) : '', e.given ? [' · wrote ', h('span', { class: 'mono' }, String(e.given))] : null, e.misconception ? [' · ', h('span', { class: 'misc-tag' }, miscLabel(e.misconception))] : null]);
+      })) : h('p', { class: 'quiet' }, 'No misses yet.'));
+    }, () => {});
   }
 
   function copyText(text, okMsg) {
@@ -2116,6 +2149,8 @@
   function showBackup() {
     state.screen = 'backup';
     const json = ST.backupJSON();
+    const imp = h('textarea', { class: 'worry-text mono', id: 'importJson', rows: '6', 'aria-label': 'Paste a backup to import' });
+    const impMsg = h('span', { class: 'copy-status', role: 'status' });
     const ta = h('textarea', { class: 'worry-text mono', id: 'backupJson', rows: '14', readonly: true, 'aria-label': 'Progress backup (JSON)' });
     ta.value = json;
     mountScreen(h('div', { class: 'parent' }, [
@@ -2125,7 +2160,19 @@
       ta,
       h('div', { class: 'end-actions' }, [btn('Copy', () => { ta.select(); copyText(json, 'Copied.'); }, 'btn-primary'), h('span', { class: 'copy-status', role: 'status' })]),
       h('p', { class: 'quiet' }, (Math.round(json.length / 102.4) / 10) + ' KB'),
+      h('h2', { class: 'section-title' }, 'Import a backup'),
+      h('p', null, 'Started on another copy of this app? Paste its backup here. It is merged into your progress; nothing here is erased.'),
+      imp,
+      h('div', { class: 'end-actions' }, [btn('Import and merge', doImport, ''), impMsg]),
     ]));
+    function doImport() {
+      let obj;
+      try { obj = JSON.parse(imp.value); } catch (e) { impMsg.textContent = 'That is not a backup: paste the whole text from “Back up my progress”.'; return; }
+      if (!obj || typeof obj !== 'object' || !(obj.progress || obj.hist || obj.diag)) { impMsg.textContent = 'That text has no progress in it.'; return; }
+      try { ST.importData(obj); } catch (e) { impMsg.textContent = 'Could not merge that backup.'; return; }
+      state.homeNote = 'Backup merged into your progress.';
+      showHome();
+    }
   }
 
   /* =====================================================================
@@ -2175,7 +2222,7 @@
    * ===================================================================== */
   async function boot() {
     await loadContent();
-    if (ST.backend === 'jsonblob') { await ST.open(ST.resolveCode()); state.ready = true; showHome(); return; }
+    if (ST.backend === 'jsonblob' || ST.backend === 'claudedb') { await ST.open(ST.resolveCode()); state.ready = true; showHome(); return; }
     if (!ST.cloud) { ST.openLocal(); state.ready = true; showHome(); return; }
     const c = ST.resolveCode();
     if (c) startCloud(c); else showCodeScreen();

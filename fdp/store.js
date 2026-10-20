@@ -5,6 +5,8 @@
  *   jsonblob (backend 'jsonblob'): a no-account JSON document store (POST/GET/PUT {base}/api/jsonBlob[/id]).
  *            The practice code IS the blob id. See the jsonblob section at the end of this file.
  *   supabase (backend 'supabase', or url + key set): Supabase over its REST API (PostgREST, plain fetch, no SDK).
+ *   claudedb (backend 'claudedb'): a claude.ai Artifact's `db` capability (artifact/index.html). One shared
+ *            document `progress/max` plus an append-only `events` collection. See the section at the end.
  *       Identity is a "practice code" (no login): it sits in the URL hash and is remembered on the device.
  *       localStorage holds the code, a cache of the last known progress (so the app opens offline), and an
  *       outbox of writes that have not reached the server yet.
@@ -26,7 +28,7 @@
   const cfg = (window.FDP_CONFIG && typeof window.FDP_CONFIG === 'object') ? window.FDP_CONFIG : {};
   const URL0 = typeof cfg.supabaseUrl === 'string' ? cfg.supabaseUrl.trim().replace(/\/+$/, '') : '';
   const KEY = typeof cfg.supabaseAnonKey === 'string' ? cfg.supabaseAnonKey.trim() : '';
-  const BACKEND = cfg.backend === 'jsonblob' ? 'jsonblob' : (cfg.backend === 'supabase' || (!cfg.backend && URL0 && KEY)) && URL0 && KEY ? 'supabase' : '';
+  const BACKEND = cfg.backend === 'claudedb' ? 'claudedb' : cfg.backend === 'jsonblob' ? 'jsonblob' : (cfg.backend === 'supabase' || (!cfg.backend && URL0 && KEY)) && URL0 && KEY ? 'supabase' : '';
   const CLOUD = BACKEND === 'supabase';
 
   const KEY_LOCAL = 'maxFdpPrep.v1';                // local-only mode: whole progress blob
@@ -369,6 +371,7 @@
     const KEY_DIRTY = 'maxFdpPrep.dirty.';           // + code or 'local'
     const EV_MAX = 3000, JB_DEBOUNCE = 3000, JB_BACKOFF = [3000, 10000, 30000, 60000];
     let events = [];
+    let jbReason = '';
     let dirty = 0, jbFailed = false, jbBusy = false, jbTimer = null, jbDebounce = null, jbBackoff = 0, lastFetchJ = 0, lastSaved = 0, jbGen = 0;
     const slot = () => code || 'local';
     const saveMirror = () => {
@@ -418,7 +421,7 @@
     function jPush(force) { const st = jStatus(); if (force || st !== jLast) { jLast = st; emit('status', st); } }
     async function create() {
       const res = await jfetch('POST', EP, doc());
-      let id = res.headers.get('X-jsonblob-id') || res.headers.get('x-jsonblob-id') || '';
+      let id = res.headers.get('X-jsonblob-id') || res.headers.get('X-jsonblob') || '';
       if (!id) { const loc = res.headers.get('Location') || res.headers.get('location') || ''; id = loc.replace(/\/+$/, '').split('/').pop(); }
       id = normCode(id);
       if (!validCode(id)) { const e = new Error('no blob id'); e.soft = true; throw e; }
@@ -471,6 +474,7 @@
         } catch (err) {
           if (g !== jbGen) return false;
           jbFailed = true;
+          jbReason = err && err.status ? 'HTTP ' + err.status : (err && err.message) || 'unknown';
           if (!jbTimer) {
             const ms = JB_BACKOFF[Math.min(jbBackoff, JB_BACKOFF.length - 1)];
             jbBackoff++;
@@ -553,9 +557,12 @@
         return null;
       },
       currentCode: () => code,
+      cloudReason: () => (jbFailed ? jbReason : ''),
       openLocal() { return jOpen(null).then(() => data); },
       open: jOpen, refresh() { if (Date.now() - lastFetchJ > REFRESH_MIN_GAP) jSync({ refetch: true }); },
       commit: jCommit, reset: jReset, leave: jLeave, readForParent: jReadForParent, merge, fresh, normalize,
+      importData(obj) { const prog = obj && obj.progress && typeof obj.progress === 'object' ? obj.progress : obj; data = merge(data, prog); if (obj && Array.isArray(obj.events)) events = mergeEvents(events, obj.events); dirty = (dirty || 0) + 1; saveMirror(); jKick(); return data; },
+      recentEvents: async (n) => events.slice().reverse().slice(0, n || 100).map((e) => Object.assign({ itemId: e.payload && e.payload.item, skill: e.payload && e.payload.skill, correct: e.payload && e.payload.correct, given: e.payload && e.payload.wrong, misconception: e.payload && e.payload.misconception }, e)),
       data: () => data,
       events: () => events,
       status: jStatus,
@@ -572,8 +579,175 @@
     return;
   }
 
+  /* =====================================================================
+   * claudedb backend (claude.ai Artifact `db` capability)
+   *   progress/max   one shared document: { v, updatedAt, progress }
+   *   events/<id>    one small document per answer: { id, at, kind, itemId, skill, correct, given, misconception, ms, mode }
+   * The namespace arrives later through claude.use('db') (null when this view cannot use it). Until then, and
+   * whenever a call fails, everything lives in the local mirror + outbox and is retried later. The UI never waits.
+   * ===================================================================== */
+  if (BACKEND === 'claudedb') {
+    const CODE = 'max';
+    const KEY_PEND = 'maxFdpPrep.cdb.pending';      // events not yet written
+    const KEY_CDIRTY = 'maxFdpPrep.cdb.dirty';
+    const MAX_DOC = 240 * 1024;
+    let db = null, dbState = 'waiting';              // waiting | ready | none
+    let pending = [], cdirty = 0, cFailed = false, cBusy = false, cTimer = null, cDebounce = null, cBackoff = 0, cLastSaved = 0, cLastFetch = 0;
+    const cSave = () => {
+      ls.set(KEY_LOCAL, JSON.stringify(data));
+      ls.set(KEY_PEND, JSON.stringify(pending.slice(-3000)));
+      if (cdirty) ls.set(KEY_CDIRTY, String(cdirty)); else ls.del(KEY_CDIRTY);
+    };
+    function cStatus() {
+      if (dbState !== 'ready' || cFailed) return 'offline';
+      if (cBusy || cdirty || pending.length) return 'saving';
+      return cLastSaved ? 'saved' : 'saving';
+    }
+    let cLast = '';
+    const cPush = (force) => { const st = cStatus(); if (force || st !== cLast) { cLast = st; emit('status', st); } };
+    /** Keep the shared document under the 256 KiB limit: old generated-item records go first. */
+    function compact(d) {
+      let out = d, json = JSON.stringify(out);
+      if (json.length <= MAX_DOC) return out;
+      out = JSON.parse(json);
+      const ids = Object.keys(out.items).filter((k) => /^g:/.test(k)).sort((a, b) => (out.items[a].t || 0) - (out.items[b].t || 0));
+      while (JSON.stringify(out).length > MAX_DOC && ids.length) { for (let i = 0; i < 50 && ids.length; i++) delete out.items[ids.shift()]; }
+      out.recent = out.recent.slice(-20);
+      return out;
+    }
+    const call = async (fn) => { try { return await fn(); } catch (e) { const er = new Error((e && e.code) || 'unavailable'); er.code = (e && e.code) || 'unavailable'; throw er; } };
+    async function cPull() {
+      const snap = await call(() => db.doc('progress/' + CODE).get());
+      const before = sig(data);
+      const remote = snap && snap.exists ? (snap.data() || {}).progress : null;
+      data = remote && typeof remote === 'object' ? merge(data, remote) : normalize(data);
+      if (!remote || sig(merge(remote, {})) !== sig(data)) cdirty = cdirty || 1;
+      cLastFetch = Date.now();
+      cSave();
+      return sig(data) !== before;
+    }
+    async function cWrite() {
+      if (cdirty) {
+        const mark = cdirty;
+        await call(() => db.doc('progress/' + CODE).set({ v: 1, updatedAt: new Date().toISOString(), progress: compact(data) }));
+        if (cdirty === mark) cdirty = 0;
+      }
+      while (pending.length) {
+        const e = pending[0];
+        await call(() => db.collection('events').doc(e.id).set(e));
+        pending.shift();
+        cSave();
+      }
+      cLastSaved = Date.now();
+      cSave();
+    }
+    function cSync(opts) {
+      opts = opts || {};
+      return serial(async () => {
+        if (dbState !== 'ready') { cPush(); return false; }
+        let changed = false;
+        try {
+          cBusy = true; cPush();
+          if (opts.refetch || Date.now() - cLastFetch > 5000) changed = await cPull();
+          await cWrite();
+          cFailed = false; cBackoff = 0;
+          if (cTimer) { clearTimeout(cTimer); cTimer = null; }
+        } catch (err) {
+          cFailed = true;
+          if (err && (err.code === 'revoked' || err.code === 'not_granted' || err.code === 'capability_disabled' || err.code === 'capability_removed')) dbState = 'none';
+          else if (!cTimer) {
+            const ms = [3000, 10000, 30000, 60000][Math.min(cBackoff, 3)];
+            cBackoff++;
+            cTimer = setTimeout(() => { cTimer = null; cSync({ refetch: true }); }, ms);
+          }
+        } finally { cBusy = false; }
+        cPush(true);
+        if (changed) emit('data');
+        return !cFailed;
+      });
+    }
+    const cKick = () => { cPush(); if (cDebounce) clearTimeout(cDebounce); cDebounce = setTimeout(() => { cDebounce = null; if (!cTimer) cSync(); }, 3000); };
+    function cOpen() {
+      code = CODE;
+      data = normalize(lsJson(KEY_LOCAL));
+      const pj = lsJson(KEY_PEND);
+      pending = Array.isArray(pj) ? pj : [];
+      cdirty = +(ls.get(KEY_CDIRTY) || 0);
+      let p0 = null;
+      try { p0 = window.claude && typeof window.claude.use === 'function' ? window.claude.use('db') : null; } catch (e) { p0 = null; }
+      Promise.resolve(p0).then((ns) => {
+        if (ns) { db = ns; dbState = 'ready'; cSync({ refetch: true }); } else { dbState = 'none'; cPush(true); }
+      }, () => { dbState = 'none'; cPush(true); });
+      return Promise.resolve({ online: null });
+    }
+    function cCommit(evs) {
+      (evs || []).forEach((e) => {
+        const p = e.payload || {};
+        const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        const doc = { id, at: new Date(e.t || Date.now()).toISOString(), kind: e.kind, device: deviceId };
+        if (e.kind === 'answer') Object.assign(doc, { itemId: p.item || null, skill: p.skill || null, correct: !!p.correct, given: p.wrong === undefined || p.wrong === null ? null : String(Array.isArray(p.wrong) ? p.wrong.join(',') : p.wrong).slice(0, 60), misconception: p.misconception || null, ms: p.ms || null, mode: p.mode || null });
+        else doc.payload = p;
+        pending.push(doc);
+      });
+      cdirty = (cdirty || 0) + 1;
+      cSave();
+      cKick();
+    }
+    function cReset() {
+      const t = Date.now();
+      data = fresh(); data.resetAt = t; data.created = t;
+      cdirty = (cdirty || 0) + 1;
+      pending.push({ id: t.toString(36) + 'reset', at: new Date(t).toISOString(), kind: 'reset', device: deviceId, payload: {} });
+      cSave();
+      return cSync();
+    }
+    async function cEvents(n) {
+      if (dbState !== 'ready') return pending.slice().reverse().slice(0, n || 100);
+      try {
+        const q = await call(() => db.collection('events').orderBy('at', 'desc').limit(n || 100).get());
+        return q.docs.map((d) => d.data()).filter(Boolean);
+      } catch (e) { return pending.slice().reverse().slice(0, n || 100); }
+    }
+    const cFlushHidden = () => { if (dbState === 'ready' && (cdirty || pending.length)) cSync(); };
+    window.addEventListener('pagehide', cFlushHidden);
+    window.addEventListener('online', () => { cFailed = false; if (cTimer) { clearTimeout(cTimer); cTimer = null; } cSync({ refetch: true }); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') { cFlushHidden(); return; }
+      if (cTimer) { clearTimeout(cTimer); cTimer = null; }
+      cSync({ refetch: true });
+    });
+    window.FDPStore = {
+      cloud: true, backend: 'claudedb', deviceId,
+      validCode, normCode, hashCode: () => null, setHash() {}, suggestCode,
+      resolveCode: () => CODE,
+      currentCode: () => CODE,
+      openLocal() { return cOpen().then(() => data); },
+      open: cOpen, refresh() { if (Date.now() - cLastFetch > REFRESH_MIN_GAP) cSync({ refetch: true }); },
+      commit: cCommit, reset: cReset, leave: async () => {}, merge, fresh, normalize,
+      readForParent: async () => ({ data, events: await cEvents(300) }),
+      recentEvents: cEvents,
+      importData(obj) { const prog = obj && obj.progress && typeof obj.progress === 'object' ? obj.progress : obj; data = merge(data, prog); cdirty = (cdirty || 0) + 1; cSave(); cSync(); return data; },
+      data: () => data,
+      events: () => pending,
+      status: cStatus,
+      dbState: () => dbState,
+      lastSaved: () => cLastSaved,
+      backupJSON: () => JSON.stringify({ v: 1, app: 'max-fdp', progress: data }, null, 1),
+      onStatus(f) { listeners.status.push(f); },
+      onData(f) { listeners.data.push(f); },
+      onCode() {},
+      isPersistent: () => lsOK,
+      flushNow: () => cSync(),
+      local: ls,
+      _debug: () => ({ code: CODE, dirty: cdirty, failed: cFailed, pending: pending.length + (cdirty ? 1 : 0), db: dbState }),
+    };
+    return;
+  }
+
   window.FDPStore = {
     cloud: CLOUD, backend: BACKEND, deviceId,
+    importData(obj) { const prog = obj && obj.progress && typeof obj.progress === 'object' ? obj.progress : obj; data = merge(data, prog); commit([{ kind: 'import', payload: {} }]); return data; },
+    recentEvents: async () => [],
     lastSaved: () => (status() === 'saved' ? Date.now() : 0),
     backupJSON: () => JSON.stringify({ v: 1, app: 'max-fdp', progress: data }, null, 1),
     onCode() {},
