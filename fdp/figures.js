@@ -13,7 +13,7 @@
   let MASK = null;
   function hits(str) {
     const p = M.parse(str);
-    return p.ok && (M.eq(p.value, MASK) || M.eq(p.num, MASK));
+    return p.ok && (p.pct ? M.eq(p.num, MASK) : M.eq(p.value, MASK));
   }
   /** Mask a raw label string (markup allowed) before it is rendered. */
   function mk(raw) {
@@ -485,9 +485,9 @@
     edge('f', 'd', 'sk-ink'); edge('d', 'p', 'sk-ink'); edge('p', 'f', 'sk-ink');
     const letter = (k, ch) => S.text(s, P[k][0], P[k][1] + 18, ch, { anchor: 'middle', size: 54, cls: 'sk-text-' + k, weight: focus === k ? 700 : 400 });
     letter('f', 'F'); letter('d', 'D'); letter('p', 'P');
-    f.lab(140, 150, 'top ÷ bottom', 'hand soft');
-    f.lab(400, 150, 'over 100,<br>simplify', 'hand soft');
-    f.lab(270, 250, '× 100 &nbsp;⇄&nbsp; ÷ 100', 'hand soft');
+    f.lab(140, 150, 'top ÷ bottom', 'hand soft edge');
+    f.lab(400, 150, 'over 100,<br>simplify', 'hand soft edge');
+    f.lab(270, 250, '× 100 &nbsp;⇄&nbsp; ÷ 100', 'hand soft edge');
     const val = (k, x, y, cls) => { if (spec[k] !== undefined && spec[k] !== '') { const v = mk(String(spec[k])); if (v === '?') { f.lab(x, y, '?', 'q fdp-val'); return; } f.lab(x, y, /\[\[/.test(v) ? '<span class="mth ' + cls + '">' + md(v) + '</span>' : K.typed(v), cls + ' fdp-val'); } };
     val('f', 270, 128, 'f');
     val('d', 96, 316, 'd');

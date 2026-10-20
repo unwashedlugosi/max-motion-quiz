@@ -574,3 +574,5 @@ b, strong { font-weight: 700; }
 .savecode { font-size: 1.05rem; font-weight: 700; color: var(--ink); background: var(--hl-soft); padding: 2px 6px; border-radius: 4px; }
 .savecard .sync { font-size: .92rem; }
 .sync[data-state="saved"] { color: var(--ok); }
+@media (max-width: 600px) { .progress .ptext { white-space: normal; font-size: 1.15rem; } }
+@media (max-width: 460px) { .fig-fdp .fig-label.edge { display: none; } }

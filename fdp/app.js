@@ -1568,7 +1568,7 @@
         return convItem(skill, LEVELS[k % LEVELS.length], k % 2 === 1);
       },
       until: (S) => masteredNow || S.answered >= 30,
-      label: () => { const m = masteryOf(skill); return skillName(skill) + ' · ' + m.streak + '/' + MASTER_RUN + ' in a row' + (m.l3 < MASTER_HARD ? ' · hard ones ' + m.l3 + '/' + MASTER_HARD : ''); },
+      label: () => { const m = masteryOf(skill); return m.streak + '/' + MASTER_RUN + ' in a row' + (m.l3 < MASTER_HARD ? ' · hard ' + m.l3 + '/' + MASTER_HARD : ''); },
       chipFor: (item) => (item.skill !== skill ? h('span', { class: 'chip' }, 'Re-check') : null),
       onAnswer: (item, r) => { const m = noteMastery(item, r.clean); if (m && item.skill === skill && m.mastered && !was) masteredNow = true; },
       doneLabel: 'Back',
