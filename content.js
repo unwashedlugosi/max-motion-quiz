@@ -1,7 +1,19 @@
 /* Max's Motion Test Prep - question bank.
    Defines window.TOPICS and window.QUESTION_BANK. See SPEC.md for the contract. */
 (function () {
+  /* The teacher's official wording, verbatim. Wherever a definition is the right answer or the model answer,
+     it uses these strings (lightly adapted to fit the sentence). */
+  window.OFFICIAL_DEFINITIONS = [
+    { id: 'motion',                term: 'Motion',                def: 'Change in position' },
+    { id: 'acceleration',          term: 'Acceleration',          def: 'The rate of change in velocity (or speed)' },
+    { id: 'reference-point',       term: 'Reference point',       def: 'The location of the observer of motion' },
+    { id: 'velocity',              term: 'Velocity',              def: 'Describing a moving object using speed and direction' },
+    { id: 'constant-speed',        term: 'Constant speed',        def: 'A speed that does not vary or change' },
+    { id: 'negative-acceleration', term: 'Negative acceleration', def: 'When an object\'s speed decreases' },
+    { id: 'positive-acceleration', term: 'Positive acceleration', def: 'When an object\'s speed increases' }
+  ];
   window.TOPICS = [
+    { id: 'defs',     name: 'The 7 key definitions' },
     { id: 'motion',   name: 'Motion & reference point' },
     { id: 'speed',    name: 'Speed & average speed' },
     { id: 'math',     name: 'Speed math (s = d ÷ t)' },
@@ -34,7 +46,7 @@
       id: 'motion-01', topic: 'motion', type: 'mc', difficulty: 1,
       prompt: 'Which is the best definition of **motion**?',
       choices: [
-        'A change in position',
+        'Change in position',
         'How fast an object is going',
         'Being pushed or pulled by a force',
         'The total distance an object travels'
@@ -46,7 +58,7 @@
         'A push or pull is a force. A force can start motion, but it is not the definition of motion.',
         'That is distance. Distance is how far something moved. Motion is the change in position itself.'
       ],
-      explain: '**Motion** is a change in position. If something is in a different place than before, it moved.',
+      explain: 'Your teacher\'s definition: **Motion: change in position.** If something is in a different place than before, it moved.',
       example: 'A soccer ball rolling from the midfield line to the goal is in motion.',
       hint: 'Think about the word position.'
     },
@@ -54,14 +66,14 @@
       id: 'motion-02', topic: 'motion', type: 'short', difficulty: 1,
       prompt: 'Explain **motion** in your own words.',
       short: {
-        modelAnswer: 'Motion is when an object changes its position. It goes from one place to another.',
+        modelAnswer: 'Motion is a change in position. A moving object ends up in a different place than before.',
         keyIdeas: [
           { id: 'change', text: 'says it is a change (something is changing or moving)', keywords: ['change','changing','changes','changed','different','moves from','goes from','move from','one place to another','switch','shift'] },
-          { id: 'position', text: 'mentions position, place, or location', keywords: ['position','place','location','spot','where','somewhere','somewhere else','area','point'] }
+          { id: 'position', text: 'mentions position, place, or location', keywords: ['position','place','location','spot','where','somewhere','somewhere else'] }
         ],
         need: 2, exampleRequired: false
       },
-      explain: '**Motion** is a change in position. Say what is changing: the place where the object is.',
+      explain: 'Your teacher\'s definition: **Motion: change in position.** Say what is changing: the place where the object is.',
       hint: 'Use the words change and position.'
     },
     {
@@ -128,33 +140,32 @@
       id: 'motion-07', topic: 'motion', type: 'mc', difficulty: 1,
       prompt: 'What is a **reference point**?',
       choices: [
-        'The place of the observer, used to tell if something is moving',
+        'The location of the observer of motion',
         'The starting line of a race',
         'The fastest object in the picture',
         'The place where an object stops'
       ],
       answer: 0,
       choiceFeedback: [
-        'Right. The reference point is where the observer is, or the place you measure from.',
-        'A starting line can be a reference point, but it is only one example. A reference point is whatever you measure from.',
+        'Right. The reference point is where the observer is. You compare the object to it to see if it moves.',
+        'A starting line is not where the observer is. The reference point is the location of the observer.',
         'Speed has nothing to do with it. A reference point does not have to move at all.',
         'The stopping place is a position, not the thing you measure from.'
       ],
-      explain: 'A **reference point** is the location of the observer. You compare an object to it to see if it moves.',
+      explain: 'Your teacher\'s definition: **Reference point: the location of the observer of motion.** You compare an object to it to see if it moves.',
       example: 'You stand on the sidewalk and watch a bike go by. You are the reference point.'
     },
     {
       id: 'motion-08', topic: 'motion', type: 'short', difficulty: 2,
       prompt: 'Explain what a **reference point** is, in your own words.',
       short: {
-        modelAnswer: 'A reference point is where the person watching is. You compare the object to it to tell if the object is moving.',
+        modelAnswer: 'A reference point is the location of the observer of motion. It is where the person watching is.',
         keyIdeas: [
-          { id: 'observer', text: 'says it is the observer or the place you watch from', keywords: ['observer','watching','watcher','person who','who is watching','looking','viewer','where you are','where i am','where they are','standing','sitting','place you','point of view','view'] },
-          { id: 'compare', text: 'says you compare or measure the object to it', keywords: ['compare','compared','measure','measured','from','relative','tell if','to see if','decide','judge','check'] }
+          { id: 'observer', text: 'says it is the observer, or the place where the person watching is', keywords: ['observer','observers','observing','watching','watcher','person who','who is watching','who watches','looking','looker','viewer','where you are','where they are','where the person','person standing','point of view','sees','seeing'] }
         ],
         need: 1, exampleRequired: false
       },
-      explain: 'The **reference point** is the location of the observer. It is what you compare an object to.',
+      explain: 'Your teacher\'s definition: **Reference point: the location of the observer of motion.** It is where the person watching is.',
       hint: 'Who is watching, and from where?'
     },
     {
@@ -175,9 +186,9 @@
       id: 'motion-10', topic: 'motion', type: 'blank', difficulty: 1, source: 'review-1',
       prompt: 'Fill in the blanks from the word bank.',
       text: 'Motion is a change in ___. The rate of change of motion is ___.',
-      bank: ['position', 'speed', 'time', 'direction', 'acceleration'],
+      bank: ['position', 'speed', 'time', 'direction', 'distance'],
       answer: ['position', 'speed'],
-      explain: '**Motion** is a change in position. How fast the position changes is **speed**.',
+      explain: 'Your teacher\'s definition: **Motion: change in position.** How fast the position changes is **speed**.',
       hint: 'The first word starts with p. The second starts with s.'
     },
     {
@@ -186,7 +197,7 @@
       text: 'The location of the observer of motion is the ___ point.',
       bank: ['reference', 'starting', 'finish', 'position'],
       answer: ['reference'],
-      explain: 'The observer\'s location is the **reference** point. You compare the moving object to it.',
+      explain: 'Your teacher\'s definition: **Reference point: the location of the observer of motion.** You compare the moving object to it.',
       hint: 'It starts with r.'
     },
     {
@@ -324,14 +335,14 @@
         'How far an object moves in a certain amount of time',
         'The total distance an object has traveled',
         'How fast an object moves and which way it goes',
-        'How quickly an object\'s speed changes'
+        'How hard an object is pushed'
       ],
       answer: 0,
       choiceFeedback: [
         'Right. Speed is distance compared to time, like 5 meters every second. It is the rate of change of position.',
         'That is distance. Speed also needs time.',
         'That is velocity. Velocity is speed plus direction.',
-        'That is acceleration. Acceleration is the rate of change of velocity.'
+        'That is a force. A push can start motion, but speed is how far an object moves in a given time.'
       ],
       explain: '**Speed** tells how far an object moves in a given time. It is the rate of change of position.',
       example: 'A cyclist who rides 10 meters every second has a speed of 10 m/s.'
@@ -413,7 +424,7 @@
       id: 'speed-07', topic: 'speed', type: 'mc', difficulty: 1,
       prompt: 'What is **constant speed**?',
       choices: [
-        'Speed that does not change',
+        'A speed that does not vary or change',
         'Speed that is very fast',
         'Moving in a straight line',
         'Not moving at all'
@@ -425,21 +436,21 @@
         'Direction does not matter for speed. A car can go in a circle at constant speed.',
         'Standing still is a speed of zero. Constant speed is usually used for things that are moving steadily.'
       ],
-      explain: '**Constant speed** is a speed that does not change. The object is not speeding up or slowing down.',
+      explain: 'Your teacher\'s definition: **Constant speed: a speed that does not vary or change.** The object is not speeding up or slowing down.',
       example: 'A moving walkway at the airport carries you at the same speed the whole way.'
     },
     {
       id: 'speed-08', topic: 'speed', type: 'short', difficulty: 1,
       prompt: 'Explain **constant speed** in your own words.',
       short: {
-        modelAnswer: 'Constant speed means the speed stays the same. The object is not speeding up or slowing down.',
+        modelAnswer: 'Constant speed is a speed that does not vary or change. The object is not speeding up or slowing down.',
         keyIdeas: [
-          { id: 'same', text: 'says the speed stays the same or does not change', keywords: ['same','steady','steadily','not change','does not change','doesn\'t change','doesnt change','never change','unchanging','stays','stay','constant','keeps','consistent','even','stable','no change'] },
-          { id: 'nospeed', text: 'says it is not speeding up or slowing down', keywords: ['not speeding','no speeding','not slowing','doesn\'t speed','does not speed','doesn\'t slow','does not slow','not faster','not slower','without speeding','without slowing','speed up','slow down','faster or slower'] }
+          { id: 'same', text: 'says the speed stays the same or does not change', keywords: ['same','steady','steadily','not change','does not change','doesn\'t change','doesnt change','never change','never changes','not vary','does not vary','doesn\'t vary','never varies','unchanging','stays','stay','keeps','consistent','stable','no change','not changing','not going up or down'] },
+          { id: 'nospeed', text: 'says it is not speeding up or slowing down', keywords: ['not speeding','no speeding','not slowing','not speed','not slow','doesn\'t speed','does not speed','doesn\'t slow','does not slow','not faster','not slower','without speeding','without slowing','neither speeding','neither speed','no faster or slower','not faster or slower'] }
         ],
         need: 1, exampleRequired: false
       },
-      explain: '**Constant speed** means the speed stays the same the whole time. No speeding up and no slowing down.'
+      explain: 'Your teacher\'s definition: **Constant speed: a speed that does not vary or change.** No speeding up and no slowing down.'
     },
     {
       id: 'speed-09', topic: 'speed', type: 'short', difficulty: 1,
@@ -466,10 +477,10 @@
     {
       id: 'speed-11', topic: 'speed', type: 'blank', difficulty: 1, source: 'review-8',
       prompt: 'Fill in the blanks from the word bank.',
-      text: 'A constant speed is a speed that does ___ change. The object is not speeding ___ or slowing ___.',
+      text: 'A constant speed is a speed that does ___ vary or change. The object is not speeding ___ or slowing ___.',
       bank: ['not', 'up', 'down', 'always', 'fast'],
       answer: ['not', 'up', 'down'],
-      explain: '**Constant speed** does not change. The object is not speeding up and not slowing down.'
+      explain: 'Your teacher\'s definition: **Constant speed: a speed that does not vary or change.** The object is not speeding up and not slowing down.'
     },
     {
       id: 'speed-12', topic: 'speed', type: 'mc', difficulty: 1,
@@ -924,33 +935,33 @@
       id: 'velocity-01', topic: 'velocity', type: 'mc', difficulty: 1,
       prompt: 'Which is the best definition of **velocity**?',
       choices: [
-        'How fast an object moves and in which direction',
+        'Describing a moving object using speed and direction',
         'How fast an object moves',
         'How far an object has moved from its start',
-        'How quickly an object\'s speed changes'
+        'How hard an object is pushed'
       ],
       answer: 0,
       choiceFeedback: [
         'Right. Velocity is speed together with direction.',
         'That is only speed. Velocity needs the direction too.',
         'That is a distance or displacement. Velocity is about speed and direction.',
-        'That is acceleration, the rate of change of velocity.'
+        'That is a force, not velocity. Velocity describes a moving object using speed and direction.'
       ],
-      explain: '**Velocity** is speed plus direction. Saying 20 mph is a speed. Saying 20 mph north is a velocity.',
+      explain: 'Your teacher\'s definition: **Velocity: describing a moving object using speed and direction.** Saying 20 mph is a speed. Saying 20 mph north is a velocity.',
       example: 'A plane flying 500 mph toward the east has a velocity.'
     },
     {
       id: 'velocity-02', topic: 'velocity', type: 'short', difficulty: 1,
       prompt: 'Explain **velocity** in your own words. How is it different from speed?',
       short: {
-        modelAnswer: 'Velocity is speed and direction together. Speed only tells how fast, but velocity also tells which way.',
+        modelAnswer: 'Velocity is describing a moving object using speed and direction. Speed only tells how fast, but velocity also tells which way.',
         keyIdeas: [
           { id: 'dir', text: 'says velocity includes direction (which way it goes)', keywords: ['direction','which way','way','north','south','east','west','heading','where it is going','where it\'s going','toward','towards','turn','path'] },
           { id: 'speed', text: 'says velocity includes speed (how fast)', keywords: ['speed','how fast','fast','rate','quick'] }
         ],
         need: 2, exampleRequired: false
       },
-      explain: '**Velocity** = speed + direction. If you leave out the direction, you only have speed.',
+      explain: 'Your teacher\'s definition: **Velocity: describing a moving object using speed and direction.** If you leave out the direction, you only have speed.',
       hint: 'Speed plus what?'
     },
     {
@@ -969,10 +980,10 @@
     {
       id: 'velocity-04', topic: 'velocity', type: 'blank', difficulty: 1, source: 'review-5',
       prompt: 'Fill in the blanks from the word bank.',
-      text: 'Velocity describes an object\'s ___ and ___.',
+      text: 'Velocity is describing a moving object using ___ and ___.',
       bank: ['speed', 'direction', 'distance', 'time', 'mass'],
       answer: ['speed', 'direction'],
-      explain: '**Velocity** describes speed and direction. Both parts matter.',
+      explain: 'Your teacher\'s definition: **Velocity: describing a moving object using speed and direction.** Both parts matter.',
       hint: 'The words start with s and d.'
     },
     {
@@ -1215,7 +1226,7 @@
       id: 'velocity-25', topic: 'velocity', type: 'short', difficulty: 2,
       prompt: 'Explain the difference between **speed** and **velocity**. Give an example of each.',
       short: {
-        modelAnswer: 'Speed is how fast something moves, like a car going 30 mph. Velocity is speed plus direction, like a car going 30 mph north.',
+        modelAnswer: 'Speed is how fast something moves, like a car going 30 mph. Velocity is describing a moving object using speed and direction, like a car going 30 mph north.',
         keyIdeas: [
           { id: 'dir', text: 'says velocity has a direction and speed does not', keywords: ['direction','which way','velocity has','velocity includes','velocity tells','speed does not','speed doesn\'t','speed doesnt','speed only','only how fast','just how fast','speed plus','speed and direction'] },
           { id: 'exspeed', text: 'gives a speed example (a number with a unit)', keywords: ['mph','km/h','kph','m/s','ft/s','per hour','per second','miles an hour','miles per','meters per','feet per'] },
@@ -1236,33 +1247,33 @@
       id: 'accel-01', topic: 'accel', type: 'mc', difficulty: 1,
       prompt: 'Which is the best definition of **acceleration**?',
       choices: [
-        'The rate at which velocity changes',
+        'The rate of change in velocity (or speed)',
         'How fast an object is going',
         'Only the act of speeding up',
         'The distance an object travels each second'
       ],
       answer: 0,
       choiceFeedback: [
-        'Right. Acceleration is the rate of change of velocity. That includes speeding up, slowing down, and changing direction.',
+        'Right. Acceleration is the rate of change in velocity (or speed). Speeding up, slowing down and turning all count.',
         'That is speed. Acceleration is about how the velocity changes.',
         'Speeding up is one kind of acceleration. Slowing down and turning count too.',
         'That describes speed. A steady 5 m/s covers 5 m each second, with no acceleration at all.'
       ],
-      explain: '**Acceleration** is the rate of change of velocity. Velocity changes when the speed changes or the direction changes.',
+      explain: 'Your teacher\'s definition: **Acceleration: the rate of change in velocity (or speed).** Velocity changes when the speed changes or the direction changes.',
       example: 'A car pulling away from a stop sign is accelerating.'
     },
     {
       id: 'accel-02', topic: 'accel', type: 'short', difficulty: 1,
       prompt: 'Explain **acceleration** in your own words.',
       short: {
-        modelAnswer: 'Acceleration is how quickly velocity changes. It happens when something speeds up, slows down, or changes direction.',
+        modelAnswer: 'Acceleration is the rate of change in velocity (or speed). It happens when something speeds up, slows down, or turns.',
         keyIdeas: [
-          { id: 'change', text: 'says velocity changes (speeds up, slows down, or turns)', keywords: ['change','changes','changing','changed','rate','how quickly','how fast it changes','varies','speeds up','speed up','speeding up','slows down','slow down','slowing down','gets faster','gets slower','faster','slower','turns','turning'] },
+          { id: 'change', text: 'says velocity or speed changes (speeds up, slows down, or turns)', keywords: ['change','changes','changing','changed','how quickly','how fast it changes','varies','speeds up','speeding up','slows down','slowing down','gets faster','gets slower','faster','slower','turns','turning'] },
           { id: 'vel', text: 'mentions velocity, speed, or direction', keywords: ['velocity','speed','speeds','speeding','slows','slowing','fast','slow','direction','turn','turning','which way'] }
         ],
         need: 2, exampleRequired: false
       },
-      explain: '**Acceleration** is the rate of change of velocity. If velocity is not changing, there is no acceleration.',
+      explain: 'Your teacher\'s definition: **Acceleration: the rate of change in velocity (or speed).** If velocity is not changing, there is no acceleration.',
       hint: 'Rate of change of what?'
     },
     {
@@ -1282,65 +1293,64 @@
       id: 'accel-04', topic: 'accel', type: 'mc', difficulty: 1,
       prompt: 'When does an object have **positive acceleration**?',
       choices: [
-        'When it is speeding up',
+        'When an object\'s speed increases',
         'When it is moving to the right or north',
         'When it is moving very fast at a steady speed',
         'When it is moving forward'
       ],
       answer: 0,
       choiceFeedback: [
-        'Right. Speeding up means positive acceleration.',
+        'Right. When the speed increases, the acceleration is positive.',
         'Positive here does not mean a direction on the map. It means the speed is increasing.',
         'Moving fast at a steady speed has zero acceleration, because the velocity is not changing.',
         'Moving forward does not tell you if it is speeding up. It could be slowing down.'
       ],
-      explain: '**Positive acceleration** means the object is speeding up.',
+      explain: 'Your teacher\'s definition: **Positive acceleration: when an object\'s speed increases.** The object is speeding up.',
       example: 'A sprinter leaving the starting blocks.'
     },
     {
       id: 'accel-05', topic: 'accel', type: 'short', difficulty: 1,
       prompt: 'Explain **positive acceleration** and give an example.',
       short: {
-        modelAnswer: 'Positive acceleration is when something speeds up. For example, a bike gets faster when you start pedaling.',
+        modelAnswer: 'Positive acceleration is when an object\'s speed increases. For example, a bike gets faster when you start pedaling.',
         keyIdeas: [
-          { id: 'speedup', text: 'says speeding up (getting faster)', keywords: ['speed up','speeds up','speeding up','faster','gets faster','getting faster','increase','increasing','increases','quicker','accelerat','gains speed','picks up speed','goes faster'] },
+          { id: 'speedup', text: 'says the speed goes up (speeding up, getting faster)', keywords: ['speeds up','speeding up','faster','gets faster','getting faster','increase','increasing','increases','quicker','higher','gains speed','picks up speed','goes faster','rises','rising','grows','bigger','goes up','going up','go up','gets higher'] },
           { id: 'ex', text: 'gives an example', keywords: ['car','bike','bicycle','bus','ball','roller coaster','coaster','skateboard','plane','rocket','train','runner','sprinter','example','like','elevator','start','starts','takes off','green light'] }
         ],
         need: 2, exampleRequired: true
       },
-      explain: '**Positive acceleration** means speeding up. A rocket lifting off is a strong example.'
+      explain: 'Your teacher\'s definition: **Positive acceleration: when an object\'s speed increases.** A rocket lifting off is a strong example.'
     },
     {
       id: 'accel-06', topic: 'accel', type: 'mc', difficulty: 1,
       prompt: 'What is **negative acceleration**, also called deceleration?',
       choices: [
-        'Slowing down',
+        'When an object\'s speed decreases',
         'Moving backward',
         'Stopped and not moving',
         'Moving at a steady speed'
       ],
       answer: 0,
       choiceFeedback: [
-        'Right. Negative acceleration (deceleration) means the object is slowing down.',
+        'Right. When the speed decreases, the acceleration is negative. The object is slowing down.',
         'Deceleration is not about going backward. A car can slow down while still moving forward.',
         'Stopped is a speed of zero. Negative acceleration is the slowing down before it stops.',
         'A steady speed means zero acceleration.'
       ],
-      explain: '**Negative acceleration**, also called **deceleration**, means an object is slowing down.',
+      explain: 'Your teacher\'s definition: **Negative acceleration: when an object\'s speed decreases.** It is also called deceleration.',
       example: 'A bus braking as it comes to a stop sign.'
     },
     {
       id: 'accel-07', topic: 'accel', type: 'short', difficulty: 2,
       prompt: 'Explain **deceleration** (negative acceleration) in your own words.',
       short: {
-        modelAnswer: 'Deceleration is when an object slows down. It is a negative acceleration.',
+        modelAnswer: 'Negative acceleration, also called deceleration, is when an object\'s speed decreases. The object is slowing down.',
         keyIdeas: [
-          { id: 'slow', text: 'says slowing down (getting slower)', keywords: ['slow','slows','slowing','slower','decrease','decreasing','decreases','loses speed','losing speed','brake','braking','less speed','goes slower','gets slower','stops','stopping'] },
-          { id: 'neg', text: 'says it is negative acceleration', keywords: ['negative','minus','opposite of speeding','opposite of accelerat','deceleration','decelerat','less than zero'] }
+          { id: 'slow', text: 'says the speed goes down (slowing down, getting slower)', keywords: ['slow','slows','slowing','slower','decrease','decreasing','decreases','loses speed','losing speed','brake','braking','lower','drops','dropping','reduces','reducing','smaller','goes slower','gets slower','goes down','going down','go down','gets lower'] }
         ],
         need: 1, exampleRequired: false
       },
-      explain: '**Deceleration** is negative acceleration. It means slowing down, not moving backward.'
+      explain: 'Your teacher\'s definition: **Negative acceleration: when an object\'s speed decreases.** It means slowing down, not moving backward.'
     },
     {
       id: 'accel-08', topic: 'accel', type: 'short', difficulty: 1,
@@ -1358,10 +1368,10 @@
     {
       id: 'accel-09', topic: 'accel', type: 'blank', difficulty: 1, source: 'review-12',
       prompt: 'Fill in the blank from the word bank.',
-      text: 'Acceleration is the rate of change of ___.',
-      bank: ['velocity', 'speed', 'distance', 'position'],
+      text: 'Acceleration is the rate of change in ___ (or speed).',
+      bank: ['velocity', 'distance', 'position', 'time'],
       answer: ['velocity'],
-      explain: '**Acceleration** is the rate of change of velocity. Velocity includes both speed and direction.',
+      explain: 'Your teacher\'s definition: **Acceleration: the rate of change in velocity (or speed).** Velocity includes both speed and direction.',
       hint: 'It starts with v.'
     },
     {
@@ -1375,18 +1385,18 @@
     {
       id: 'accel-11', topic: 'accel', type: 'blank', difficulty: 1, source: 'review-14',
       prompt: 'Fill in the blank from the word bank.',
-      text: 'When an object speeds up, it has ___ acceleration.',
+      text: 'When an object\'s speed increases, it has ___ acceleration.',
       bank: ['positive', 'negative', 'zero', 'no'],
       answer: ['positive'],
-      explain: 'Speeding up is **positive acceleration**.'
+      explain: 'Your teacher\'s definition: **Positive acceleration: when an object\'s speed increases.**'
     },
     {
       id: 'accel-12', topic: 'accel', type: 'blank', difficulty: 1, source: 'review-15',
       prompt: 'Fill in the blanks from the word bank.',
-      text: 'When an object slows down, it has ___ acceleration. It is also called ___.',
+      text: 'When an object\'s speed decreases, it has ___ acceleration. It is also called ___.',
       bank: ['negative', 'deceleration', 'positive', 'zero', 'reverse'],
       answer: ['negative', 'deceleration'],
-      explain: 'Slowing down is **negative acceleration**, also called **deceleration**.',
+      explain: 'Your teacher\'s definition: **Negative acceleration: when an object\'s speed decreases.** It is also called deceleration.',
       hint: 'The words start with n and d.'
     },
     {
@@ -1600,7 +1610,7 @@
       diagram: dg('velocity', { path: 'circle', speed: 6, unit: 'm/s', showChecklist: true }, false),
       answer: true,
       falseFeedback: 'It is true. A car going around a curve at a steady 30 mph keeps its speed, but its direction changes. A change in direction is a change in velocity, and that is an acceleration.',
-      explain: 'Acceleration is the rate of change of **velocity**, and velocity includes direction. Turning at a steady speed changes the velocity, so it counts as acceleration.',
+      explain: 'Your teacher\'s definition: **Acceleration: the rate of change in velocity (or speed).** Velocity includes direction, so turning at a steady speed changes the velocity. That counts as acceleration.',
       example: 'A horse on a merry-go-round moves at a steady speed but is always changing direction, so it is accelerating.'
     },
     {
@@ -2191,6 +2201,326 @@
       explain: 'The story in order: constant speed, stopped, accelerating, decelerating, stopped at the end.'
     }
   );
+
+  /* ============================================================
+     TOPIC 0: THE 7 KEY DEFINITIONS (the teacher's official wording)
+     Per term: mc-def, mc-term, blank, short, see  (ids def-<term>-<fmt>)
+     Plus two bins "match" questions that cover all 7 terms.
+     Each term question carries term + fmt so the app can work out which terms are known cold.
+     ============================================================ */
+  (function () {
+    var OBY = {};
+    window.OFFICIAL_DEFINITIONS.forEach(function (o) { OBY[o.id] = o; });
+    var lowerFirst = function (s) { return s.charAt(0).toLowerCase() + s.slice(1); };
+    /* "**Velocity: describing a moving object using speed and direction.**" */
+    var boldDef = function (id) { return '**' + OBY[id].term + ': ' + lowerFirst(OBY[id].def) + '.**'; };
+    var DEFSRC = 'teacher-defs';
+
+    /* Names used for wrong-answer feedback */
+    var NAME = {
+      'motion': 'Motion', 'acceleration': 'Acceleration', 'reference-point': 'Reference point', 'velocity': 'Velocity',
+      'constant-speed': 'Constant speed', 'negative-acceleration': 'Negative acceleration', 'positive-acceleration': 'Positive acceleration',
+      'speed': 'Speed', 'position': 'Position'
+    };
+
+    function base(termId, fmt, type, difficulty) {
+      return { id: 'def-' + termId + '-' + fmt, topic: 'defs', type: type, difficulty: difficulty, source: DEFSRC, term: termId, fmt: fmt };
+    }
+
+    /* ---- mc-def: choices are definitions. spec: {term: id, fb: '...'} for another official definition,
+       or {text, fb} for one common misconception. ---- */
+    function mcDef(termId, specs, answerAt, hint) {
+      var q = base(termId, 'mc-def', 'mc', 1);
+      var choices = [], fbs = [];
+      var wrong = specs.slice();
+      for (var i = 0; i < specs.length + 1; i++) {
+        if (i === answerAt) {
+          choices.push(OBY[termId].def);
+          fbs.push('Right. ' + OBY[termId].term + ': ' + lowerFirst(OBY[termId].def) + '.');
+        } else {
+          var sp = wrong.shift();
+          if (sp.term) {
+            choices.push(OBY[sp.term].def);
+            fbs.push('That is the definition of ' + OBY[sp.term].term + '. ' + sp.fb);
+          } else {
+            choices.push(sp.text);
+            fbs.push(sp.fb);
+          }
+        }
+      }
+      q.prompt = 'What is the definition of **' + OBY[termId].term + '**?';
+      q.choices = choices; q.answer = answerAt; q.choiceFeedback = fbs;
+      q.explain = 'Each term has its own definition, so learn them as a set. ' + boldDef(termId);
+      if (hint) q.hint = hint;
+      return q;
+    }
+
+    /* ---- mc-term: the definition is in the prompt, choices are terms. spec: [name, feedback] ---- */
+    function mcTerm(termId, specs, answerAt, hint) {
+      var q = base(termId, 'mc-term', 'mc', 1);
+      var choices = [], fbs = [];
+      var wrong = specs.slice();
+      for (var i = 0; i < specs.length + 1; i++) {
+        if (i === answerAt) {
+          choices.push(OBY[termId].term);
+          fbs.push('Right. ' + boldDef(termId));
+        } else {
+          var sp = wrong.shift();
+          choices.push(sp[0]); fbs.push(sp[1]);
+        }
+      }
+      q.prompt = '"' + OBY[termId].def + '" is the definition of which term?';
+      q.choices = choices; q.answer = answerAt; q.choiceFeedback = fbs;
+      q.explain = 'Match the words of the definition to the right term. ' + boldDef(termId);
+      if (hint) q.hint = hint;
+      return q;
+    }
+
+    function blank(termId, text, bank, answer, hint) {
+      var q = base(termId, 'blank', 'blank', 1);
+      q.prompt = 'Fill in the blank' + (answer.length > 1 ? 's' : '') + ' from the word bank.';
+      q.text = text; q.bank = bank; q.answer = answer;
+      q.explain = 'Say it out loud with the missing word' + (answer.length > 1 ? 's' : '') + ' in place. ' + boldDef(termId);
+      if (hint) q.hint = hint;
+      return q;
+    }
+
+    function shortQ(termId, ideas, need, hint) {
+      var q = base(termId, 'short', 'short', 2);
+      q.prompt = 'Write the definition of **' + OBY[termId].term + '** from memory.';
+      q.short = { modelAnswer: OBY[termId].def, keyIdeas: ideas, need: need, exampleRequired: false };
+      q.explain = 'Your own words are fine if every key idea is there. Spelling does not count. ' + boldDef(termId);
+      if (hint) q.hint = hint;
+      return q;
+    }
+
+    function seeMc(termId, prompt, diagram, after, choices, answer, fbs, why) {
+      var q = base(termId, 'see', 'mc', 2);
+      q.prompt = prompt; q.diagram = diagram;
+      if (after) q.after = after;
+      q.choices = choices; q.answer = answer; q.choiceFeedback = fbs;
+      q.explain = why + ' ' + boldDef(termId);
+      return q;
+    }
+    function seeDo(termId, prompt, goalText, diagram, goal, why) {
+      var q = base(termId, 'see', 'manipulate', 2);
+      q.prompt = prompt; q.goalText = goalText; q.diagram = diagram; q.goal = goal;
+      q.explain = why + ' ' + boldDef(termId);
+      return q;
+    }
+
+    var D = [];
+
+    /* ---------------- 1. Motion ---------------- */
+    D.push(
+      mcDef('motion', [
+        { term: 'reference-point', fb: 'A reference point is where the observer is. Motion is the change in position.' },
+        { term: 'velocity', fb: 'Velocity needs speed and direction. Motion is the change in position.' },
+        { text: 'The distance an object travels', fb: 'That is distance, how far something went. Motion is the change in position itself.' }
+      ], 2, 'Two words about where something is: change in what?'),
+      mcTerm('motion', [
+        ['Reference point', 'The reference point is the location of the observer, not the change in position.'],
+        ['Position', 'Position is where an object is. Motion is the change in position.'],
+        ['Velocity', 'Velocity is speed and direction together.']
+      ], 1),
+      blank('motion', 'Motion is a ___ in ___.', ['change', 'position', 'speed', 'distance', 'direction'], ['change', 'position'], 'The words start with c and p.'),
+      shortQ('motion', [
+        { id: 'change', text: 'says it is a change (something is changing or moving from one place to another)', keywords: ['change','changes','changing','changed','different','moves from','goes from','move from','one place to another','switch','shift'] },
+        { id: 'position', text: 'says it is a change in position, place or location', keywords: ['position','place','location','spot','where','somewhere','somewhere else'] }
+      ], 2, 'Use the words change and position.'),
+      seeMc('motion', 'Watch the car. It starts at the start flag and ends at the finish flag. Which term names what happened to its position?',
+        dg('race', { d: 40, t: 4, dUnit: 'm', tUnit: 's', hide: ['s'] }, false), null,
+        ['Reference point', 'Acceleration', 'Motion', 'Velocity'], 2,
+        ['A reference point is where the observer is. It does not name the change in the car\'s position.',
+         'Acceleration is about how fast the speed is changing, not the change in position.',
+         'Right. The car\'s position changed from the start flag to the finish flag.',
+         'Velocity needs a speed and a direction. The question is about the change in position.'],
+        'The car ended up in a different place than where it began.')
+    );
+
+    /* ---------------- 2. Acceleration ---------------- */
+    D.push(
+      mcDef('acceleration', [
+        { term: 'motion', fb: 'Motion is the change in position. Acceleration is the rate of change in velocity (or speed).' },
+        { text: 'How fast an object is moving', fb: 'That is speed. Acceleration is how fast the speed or velocity is changing.' },
+        { term: 'constant-speed', fb: 'A constant speed does not change at all, so there is no acceleration.' }
+      ], 0, 'It is a rate of change. Change in what?'),
+      mcTerm('acceleration', [
+        ['Velocity', 'Velocity is speed and direction. Acceleration is how fast the velocity changes.'],
+        ['Speed', 'Speed is how fast an object moves. Acceleration is the rate of change in the speed or velocity.'],
+        ['Constant speed', 'A constant speed does not change, so it has no acceleration.']
+      ], 0),
+      blank('acceleration', 'Acceleration is the ___ of change in ___ (or speed).', ['rate', 'velocity', 'distance', 'position', 'time', 'amount'], ['rate', 'velocity'], 'The words start with r and v.'),
+      shortQ('acceleration', [
+        { id: 'change', text: 'says it is a change, or a rate of change (speeds up, slows down, or turns)', keywords: ['change','changes','changing','changed','how quickly','how fast it changes','varies','speeds up','speeding up','slows down','slowing down','gets faster','gets slower','faster','slower','turns','turning'] },
+        { id: 'vel', text: 'says it is a change in velocity or speed (or direction)', keywords: ['velocity','speed','speeds','speeding','slows','slowing','fast','slow','direction','turn','turning','which way'] }
+      ], 2, 'A rate of change. Change in what?'),
+      seeMc('acceleration', 'Watch the speedometer needle and the dots. Which term names how quickly this car\'s speed is changing?',
+        dg('accel', { v0: 5, a: 2, seconds: 6, unit: 'm/s', hide: ['label', 'a'] }, false), { hide: [] },
+        ['Acceleration', 'Velocity', 'Motion', 'Reference point'], 0,
+        ['Right. The speed keeps changing, and acceleration is the rate of that change.',
+         'Velocity is speed and direction. It does not name how quickly the speed is changing.',
+         'Motion is a change in position. It does not name how quickly the speed is changing.',
+         'A reference point is where the observer is.'],
+        'The needle keeps moving because the speed keeps changing.')
+    );
+
+    /* ---------------- 3. Reference point ---------------- */
+    D.push(
+      mcDef('reference-point', [
+        { term: 'motion', fb: 'Motion is the change in position. A reference point is where the observer is.' },
+        { term: 'velocity', fb: 'Velocity is speed and direction. A reference point is where the observer is.' },
+        { term: 'constant-speed', fb: 'A constant speed is a speed that does not vary or change. A reference point is where the observer is.' }
+      ], 3, 'Who is watching, and where?'),
+      mcTerm('reference-point', [
+        ['Motion', 'Motion is the change in position. The observer\'s location is the reference point.'],
+        ['Position', 'Position is where an object is. The location of the observer is the reference point.'],
+        ['Velocity', 'Velocity is speed and direction together.']
+      ], 2),
+      blank('reference-point', 'A reference point is the ___ of the ___ of motion.', ['location', 'observer', 'object', 'speed', 'direction'], ['location', 'observer'], 'The words start with l and o.'),
+      shortQ('reference-point', [
+        { id: 'observer', text: 'says it is the observer, or the place where the person watching is', keywords: ['observer','observers','observing','watching','watcher','person who','who is watching','who watches','looking','looker','viewer','where you are','where they are','where the person','person standing','point of view','sees','seeing'] }
+      ], 1, 'Who is watching the motion?'),
+      seeDo('reference-point', 'The observer is standing on the platform, so the platform is the reference point. Use the switch below the picture.',
+        'Move the reference point into the train. Make the observer the passenger.',
+        dg('reference', { viewpoint: 'platform', trainSpeed: 1 }, true), { key: 'viewpoint', op: 'eq', value: 'train' },
+        'From the passenger\'s seat, the passenger is the observer. The train seat becomes the reference point, and the scenery looks like it slides by.')
+    );
+
+    /* ---------------- 4. Velocity ---------------- */
+    D.push(
+      mcDef('velocity', [
+        { term: 'acceleration', fb: 'Acceleration is about how the velocity or speed changes. Velocity is speed and direction.' },
+        { term: 'constant-speed', fb: 'A constant speed has no direction in it. Velocity is speed and direction.' },
+        { text: 'How fast an object is moving', fb: 'That is only speed. Velocity needs the direction too.' }
+      ], 1, 'Speed plus what?'),
+      mcTerm('velocity', [
+        ['Speed', 'Speed only tells how fast. Velocity also has a direction.'],
+        ['Constant speed', 'A constant speed is a speed that does not change. It has no direction in it.'],
+        ['Acceleration', 'Acceleration is the rate of change in velocity (or speed).']
+      ], 3),
+      blank('velocity', 'Velocity is describing a moving object using ___ and ___.', ['speed', 'direction', 'distance', 'time', 'position'], ['speed', 'direction'], 'The words start with s and d.'),
+      shortQ('velocity', [
+        { id: 'speed', text: 'says it includes speed (how fast)', keywords: ['speed','how fast','fast','quick','quickly','mph','km/h','m/s'] },
+        { id: 'dir', text: 'says it includes direction (which way)', keywords: ['direction','directions','which way','what way','the way','north','south','east','west','heading','where it is going','where it\'s going','toward','towards'] }
+      ], 2, 'Speed and what else?'),
+      seeMc('velocity', 'The arrow on the runner shows how fast the runner goes and which way. Which term names this?',
+        dg('velocity', { path: 'circle', speed: 6, unit: 'ft/s', hide: ['legend'] }, false), { hide: [] },
+        ['Constant speed', 'Acceleration', 'Velocity', 'Reference point'], 2,
+        ['The runner\'s speed is steady, but the arrow also shows the direction. Speed and direction together is velocity.',
+         'Acceleration is the rate of change in velocity (or speed). The arrow itself shows the velocity.',
+         'Right. The arrow length shows the speed and the arrow points the way, so it shows the velocity.',
+         'A reference point is where the observer is.'],
+        'The arrow is long when the runner is fast and points the way the runner goes.')
+    );
+
+    /* ---------------- 5. Constant speed ---------------- */
+    D.push(
+      mcDef('constant-speed', [
+        { term: 'positive-acceleration', fb: 'Positive acceleration means the speed is changing. A constant speed does not change.' },
+        { term: 'negative-acceleration', fb: 'Negative acceleration means the speed is changing. A constant speed does not change.' },
+        { term: 'velocity', fb: 'Velocity is speed and direction. A constant speed is a speed that does not vary or change.' }
+      ], 2, 'Not speeding up and not slowing down.'),
+      mcTerm('constant-speed', [
+        ['Velocity', 'Velocity is speed and direction together.'],
+        ['Speed', 'Speed can change. The word constant means it does not.'],
+        ['Acceleration', 'Acceleration is the rate of change in velocity (or speed). A constant speed does not change.']
+      ], 1),
+      blank('constant-speed', 'Constant speed is a ___ that does not vary or change.', ['speed', 'velocity', 'direction', 'distance', 'position'], ['speed'], 'It starts with s.'),
+      shortQ('constant-speed', [
+        { id: 'same', text: 'says the speed does not change (stays the same, does not vary)', keywords: ['same','steady','steadily','not change','does not change','doesn\'t change','doesnt change','never change','never changes','not vary','does not vary','doesn\'t vary','never varies','unchanging','stays','stay','keeps','consistent','stable','no change','not changing','not speeding up or slowing','not speeding up or slowing down','without speeding or slowing'] }
+      ], 1, 'What does the speed not do?'),
+      seeMc('constant-speed', 'The robot rolls down the hallway. The line is straight, so it goes the same distance every second. Which term describes its speed?',
+        dg('dtgraph', { shape: 'constant', xMax: 10, yMax: 50, xStep: 2, yStep: 10 }, false), null,
+        ['Positive acceleration', 'Negative acceleration', 'Constant speed', 'Reference point'], 2,
+        ['Positive acceleration means the speed is increasing. This line has the same steepness all the way.',
+         'Negative acceleration means the speed is decreasing. This line has the same steepness all the way.',
+         'Right. The same distance every second means the speed does not change.',
+         'A reference point is where the observer is.'],
+        'A straight slanted line has the same steepness all the way, so the speed never changes.')
+    );
+
+    /* ---------------- 6. Negative acceleration ---------------- */
+    D.push(
+      mcDef('negative-acceleration', [
+        { term: 'positive-acceleration', fb: 'It is the opposite. Negative acceleration is when the speed decreases.' },
+        { term: 'constant-speed', fb: 'A constant speed does not change. Negative acceleration is when the speed decreases.' },
+        { term: 'acceleration', fb: 'It is the general idea. Negative acceleration is only when the speed decreases.' }
+      ], 3, 'The speed goes which way?'),
+      mcTerm('negative-acceleration', [
+        ['Positive acceleration', 'Positive acceleration is when the speed increases. This definition is about the speed decreasing.'],
+        ['Constant speed', 'A constant speed does not change. Here the speed decreases.'],
+        ['Velocity', 'Velocity is speed and direction together.']
+      ], 2),
+      blank('negative-acceleration', '___ acceleration is when an object\'s speed ___.', ['negative', 'decreases', 'positive', 'increases', 'zero'], ['negative', 'decreases'], 'The words start with n and d.'),
+      shortQ('negative-acceleration', [
+        { id: 'down', text: 'says the speed goes down (slowing down, speed decreases)', keywords: ['slow','slows','slowing','slower','decrease','decreasing','decreases','loses speed','losing speed','brake','braking','lower','drops','dropping','reduces','reducing','smaller','goes slower','gets slower','goes down','going down','go down','gets lower'] }
+      ], 1, 'What happens to the speed?'),
+      seeMc('negative-acceleration', 'Look at the car and the dots. Which term describes what this car is doing?',
+        dg('accel', { v0: 12, a: -2, seconds: 6, unit: 'm/s', hide: ['label', 'a'] }, false), { hide: [] },
+        ['Constant speed', 'Negative acceleration', 'Positive acceleration', 'Reference point'], 1,
+        ['A constant speed would leave dots that are evenly spaced. These dots get closer together.',
+         'Right. The dots get closer together, so the speed is decreasing.',
+         'Positive acceleration would spread the dots farther apart each second.',
+         'A reference point is where the observer is.'],
+        'The gaps between the dots shrink, so the car covers less distance each second.')
+    );
+
+    /* ---------------- 7. Positive acceleration ---------------- */
+    D.push(
+      mcDef('positive-acceleration', [
+        { term: 'negative-acceleration', fb: 'It is the opposite. Positive acceleration is when the speed increases.' },
+        { term: 'acceleration', fb: 'It is the general idea. Positive acceleration is only when the speed increases.' },
+        { term: 'constant-speed', fb: 'A constant speed does not change. Positive acceleration is when the speed increases.' }
+      ], 0, 'The speed goes which way?'),
+      mcTerm('positive-acceleration', [
+        ['Negative acceleration', 'Negative acceleration is when the speed decreases. This definition is about the speed increasing.'],
+        ['Constant speed', 'A constant speed does not change. Here the speed increases.'],
+        ['Velocity', 'Velocity is speed and direction together.']
+      ], 3),
+      blank('positive-acceleration', '___ acceleration is when an object\'s speed ___.', ['positive', 'increases', 'negative', 'decreases', 'zero'], ['positive', 'increases'], 'The words start with p and i.'),
+      shortQ('positive-acceleration', [
+        { id: 'up', text: 'says the speed goes up (speeding up, speed increases)', keywords: ['speeds up','speeding up','faster','gets faster','getting faster','increase','increasing','increases','quicker','higher','gains speed','picks up speed','goes faster','rises','rising','grows','bigger','goes up','going up','go up','gets higher'] }
+      ], 1, 'What happens to the speed?'),
+      seeDo('positive-acceleration', 'The car is driving at a steady speed. Use the slider.',
+        'Make the car show positive acceleration.',
+        dg('accel', { v0: 10, a: 0, seconds: 6, unit: 'm/s' }, true), { key: 'a', op: 'gte', value: 1 },
+        'Positive acceleration spreads the dots farther apart each second, because the car keeps getting faster.')
+    );
+
+    /* ---------------- match: two bins questions covering all 7 ---------------- */
+    var match1 = {
+      id: 'def-match-1', topic: 'defs', type: 'bins', difficulty: 2, source: DEFSRC,
+      prompt: 'Tap each definition into the term it belongs to.',
+      bins: {
+        categories: [{ id: 'M', label: 'Motion' }, { id: 'R', label: 'Reference point' }, { id: 'V', label: 'Velocity' }, { id: 'C', label: 'Constant speed' }],
+        items: [
+          { text: OBY['velocity'].def, answer: 'V' },
+          { text: OBY['motion'].def, answer: 'M' },
+          { text: OBY['constant-speed'].def, answer: 'C' },
+          { text: OBY['reference-point'].def, answer: 'R' }
+        ]
+      },
+      explain: 'Four terms, four definitions.\n' + ['motion', 'reference-point', 'velocity', 'constant-speed'].map(boldDef).join('\n')
+    };
+    var match2 = {
+      id: 'def-match-2', topic: 'defs', type: 'bins', difficulty: 2, source: DEFSRC,
+      prompt: 'Tap each definition into the term it belongs to.',
+      bins: {
+        categories: [{ id: 'A', label: 'Acceleration' }, { id: 'N', label: 'Negative acceleration' }, { id: 'P', label: 'Positive acceleration' }],
+        items: [
+          { text: OBY['positive-acceleration'].def, answer: 'P' },
+          { text: OBY['acceleration'].def, answer: 'A' },
+          { text: OBY['negative-acceleration'].def, answer: 'N' }
+        ]
+      },
+      explain: 'The three acceleration terms. Look at what happens to the speed.\n' + ['acceleration', 'negative-acceleration', 'positive-acceleration'].map(boldDef).join('\n')
+    };
+
+    /* order: motion first, bins at the end */
+    D.push(match1, match2);
+    D.forEach(function (q) { Q.push(q); });
+  })();
 
   window.QUESTION_BANK = Q;
 })();

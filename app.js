@@ -14,6 +14,10 @@
   const SEPARATION = 4;         // two right answers count as "separated" if >= this many answers apart
   const FIX_MAX = 12;
   const RETRY_TYPES = new Set(['mc', 'multi', 'tf', 'blank', 'numeric', 'bins']);
+  const DRILL_LEN = 14;         // "Key definitions" drill: questions per round (missed ones come back on top of this)
+  const DRILL_AHEAD = 3;        // the drill always has this many questions lined up, so a miss can return 3 later
+  const DEFS_IN_QUIZ = 3;       // every regular quiz carries this many key-definition questions
+  const KNOWN_FORMATS = 3;      // "known cold" needs right answers in at least this many different formats
 
   const root = document.getElementById('app');
   const liveEl = document.getElementById('live');
@@ -46,6 +50,18 @@
   }
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rich = (s) => esc(s === undefined || s === null ? '' : s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+  /** Like rich(), but the teacher's official definitions (bold or not) get the .def-hl highlight. */
+  function richDef(s) {
+    const text = String(s === undefined || s === null ? '' : s);
+    const defs = (Array.isArray(window.OFFICIAL_DEFINITIONS) ? window.OFFICIAL_DEFINITIONS : []).map((d) => d.def).sort((x, y) => y.length - x.length);
+    const re = defs.length ? new RegExp('(' + defs.map((d) => d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi') : null;
+    const plainPart = (t) => (re ? t.split(re).map((seg, i) => (i % 2 ? '<strong class="def-hl">' + esc(seg) + '</strong>' : esc(seg))).join('') : esc(t)).replace(/\n/g, '<br>');
+    return text.split(/(\*\*.+?\*\*)/g).map((part) => {
+      const m = /^\*\*(.+?)\*\*$/.exec(part);
+      if (!m) return plainPart(part);
+      return '<strong' + (re && new RegExp(re.source, 'i').test(m[1]) ? ' class="def-hl"' : '') + '>' + esc(m[1]) + '</strong>';
+    }).join('');
+  }
   const plain = (s) => String(s === undefined || s === null ? '' : s).replace(/\*\*/g, '');
   const ICON = {
     check: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13 L9.5 18.5 L20 6" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -210,6 +226,81 @@
     }
     const noteRound = () => { run({ k: 'r', t: Date.now() }); };
     return { load, reset, get, isMissed, answer, amend, qMastery, topicMastery, missedIds, noteRound, isPersistent: () => QS.isPersistent(), _data: D };
+  })();
+
+  /* =====================================================================
+   * Key definitions: the teacher's 7 official definitions (content.js, OFFICIAL_DEFINITIONS).
+   * A term is "known cold" when, from the per-question history already kept (and synced) by the Store:
+   *   - its questions (those with q.term === the term id) were answered right in at least 3 different formats
+   *     (q.fmt: mc-def, mc-term, blank, short, see), judged by the latest first attempt at each question, and
+   *   - the most recent first attempt at any of its questions was right, and
+   *   - if a short ("write it from memory") question has been tried, its latest attempt was right.
+   * Nothing extra is stored: this is computed from QuizStore data, so it follows Max to every device.
+   * ===================================================================== */
+  const Defs = (function () {
+    const list = () => (Array.isArray(window.OFFICIAL_DEFINITIONS) ? window.OFFICIAL_DEFINITIONS : []);
+    const STATE_TEXT = { not: 'not yet', getting: 'getting there', cold: 'known cold' };
+    const has = () => list().length > 0 && BANK.some((q) => q.term);
+
+    function status(termId) {
+      const passed = new Set();
+      let lastAt = -1, lastOk = false, shortSeen = false, shortOk = false, tried = 0;
+      BANK.forEach((q) => {
+        if (q.term !== termId) return;
+        const rec = Store.get(q.id);
+        if (!rec || !rec.hist.length) return;
+        tried++;
+        const ok = rec.hist[rec.hist.length - 1] >= 1;
+        if (ok) passed.add(q.fmt);
+        if (rec.lastSeen >= lastAt) { lastAt = rec.lastSeen; lastOk = ok; }
+        if (q.fmt === 'short') { shortSeen = true; shortOk = ok; }
+      });
+      const known = passed.size >= KNOWN_FORMATS && lastOk && (!shortSeen || shortOk);
+      return { known, passed, tried, state: known ? 'cold' : passed.size >= 1 ? 'getting' : 'not' };
+    }
+    function all() { const o = {}; list().forEach((t) => { o[t.id] = status(t.id); }); return o; }
+    const coldCount = (st) => list().filter((t) => (st || all())[t.id].known).length;
+    const allCold = () => { const st = all(); return list().length > 0 && list().every((t) => st[t.id].known); };
+    /** Official definitions whose wording appears in some text (case-insensitive, markdown stripped). */
+    function inText(text) {
+      const t = plain(text).toLowerCase();
+      return list().filter((d) => t.indexOf(d.def.toLowerCase()) >= 0);
+    }
+    /** One weighted pick among the definition questions.
+     *  o: { states, exclude:Set(ids), avoid:Set(term ids), lastFmt, termCount:{term:n} } */
+    function pick(o) {
+      const states = o.states || all();
+      let cands = BANK.filter((q) => q.term && states[q.term] && !(o.exclude && o.exclude.has(q.id)) && !(o.avoid && o.avoid.has(q.term)));
+      // terms not yet known cold come first: known-cold terms are only used when nothing else is left to ask
+      const fresh = cands.filter((q) => !states[q.term].known);
+      if (fresh.length) cands = fresh;
+      if (!cands.length) return null;
+      const ws = cands.map((q) => {
+        const st = states[q.term];
+        let w = st.known ? 1 : st.state === 'getting' ? 2.6 : 3;
+        w *= st.passed.has(q.fmt) ? 0.35 : 1.8;                                               // formats he has not passed come first
+        if (!Store.get(q.id)) w *= 1.25;
+        if (o.lastFmt && q.fmt === o.lastFmt) w *= 0.35;                                       // mix the formats
+        if (q.fmt === 'short') w *= 1.15;
+        w *= Math.pow(0.6, (o.termCount && o.termCount[q.term]) || 0);
+        return w;
+      });
+      let r = Math.random() * ws.reduce((a, b) => a + b, 0), k = 0;
+      for (; k < cands.length; k++) { r -= ws[k]; if (r <= 0) break; }
+      return cands[Math.min(k, cands.length - 1)];
+    }
+    /** n questions for a regular quiz: different terms, terms not yet known cold first. */
+    function pickForQuiz(n) {
+      const out = [], terms = new Set(), exclude = new Set();
+      const states = all();
+      while (out.length < n) {
+        const q = pick({ states, exclude, avoid: terms });
+        if (!q) break;
+        out.push(q); terms.add(q.term); exclude.add(q.id);
+      }
+      return out;
+    }
+    return { list, has, status, all, coldCount, allCold, inText, pick, pickForQuiz, STATE_TEXT };
   })();
 
   /* =====================================================================
@@ -547,7 +638,12 @@
     return chosen;
   }
   function buildIds(mode, opts) {
-    if (mode === 'quiz') return pickWeighted(BANK, QUIZ_LEN, true).map((q) => q.id);
+    if (mode === 'quiz') {
+      // at least 3 key-definition questions (terms not yet known cold first), the rest from everything else
+      const defs = Defs.pickForQuiz(DEFS_IN_QUIZ);
+      const rest = pickWeighted(BANK.filter((q) => q.topic !== 'defs'), QUIZ_LEN - defs.length, true);
+      return shuffle(defs.concat(rest)).map((q) => q.id);
+    }
     if (mode === 'topic') return pickWeighted(BANK.filter((q) => q.topic === opts.topic), QUIZ_LEN, false).map((q) => q.id);
     if (mode === 'review') return sheetQuestions('review-').map((q) => q.id);
     if (mode === 'mission') return sheetQuestions('mission-').map((q) => q.id);
@@ -555,10 +651,78 @@
     if (mode === 'ids') return (opts.ids || []).filter((id) => byId[id]);
     return [];
   }
-  const modeLabel = (mode, opts) => ({ quiz: 'Mixed quiz', review: 'Review sheet', mission: 'Motion Mission', fix: 'Fix my mistakes' }[mode] || (mode === 'topic' ? topicName(opts.topic) : 'Practice'));
+  const modeLabel = (mode, opts) => ({ quiz: 'Mixed quiz', defs: 'Key definitions', review: 'Review sheet', mission: 'Motion Mission', fix: 'Fix my mistakes' }[mode] || (mode === 'topic' ? topicName(opts.topic) : 'Practice'));
+
+  /* ---- Key definitions drill: ~14 questions from the defs topic only, planned a few at a time ---- */
+  const termOfEntry = (e) => (e && byId[e.id] ? byId[e.id].term : undefined);
+  function fillDrill(round, minAhead) {
+    const firsts = () => round.queue.filter((x) => !x.retry);
+    const ahead = () => round.queue.length - round.idx - 1;
+    // minAhead: a miss near the end needs other questions after it, or it would come straight back (round gets 1 or 2 extra)
+    while (ahead() < (minAhead || 0) || (firsts().length < round.total && ahead() < DRILL_AHEAD)) {
+      const last = round.queue[round.queue.length - 1];
+      const lastQ = last ? byId[last.id] : null;
+      const termCount = {};
+      firsts().forEach((x) => { const t = termOfEntry(x); if (t) termCount[t] = (termCount[t] || 0) + 1; });
+      const q = Defs.pick({
+        states: Defs.all(), exclude: new Set(firsts().map((x) => x.id)),
+        avoid: lastQ && lastQ.term ? new Set([lastQ.term]) : null, lastFmt: lastQ ? lastQ.fmt : null, termCount,
+      });
+      if (!q) break;
+      round.queue.push({ id: q.id });
+    }
+    round.total = Math.max(round.total, firsts().length);
+  }
+  /** Where a missed drill question returns: 3 positions later, nudged so the same term is never next to itself.
+   *  If the end of the queue leaves no such spot, one more question (a different term) is lined up first. */
+  function drillRetryPos(round, q) {
+    const base = round.idx + RETRY_GAP;
+    const spot = () => {
+      const ok = (p) => p > round.idx && p <= round.queue.length && termOfEntry(round.queue[p - 1]) !== q.term && termOfEntry(round.queue[p]) !== q.term;
+      const tries = [base, base + 1, base + 2, base - 1, base + 3];
+      for (let i = 0; i < tries.length; i++) if (ok(tries[i])) return tries[i];
+      return -1;
+    };
+    // first choice is exactly 3 later: if a neighbour there is the same term and has not been shown yet, swap it for another question
+    const reroll = (i) => {
+      const e = round.queue[i];
+      if (!e || e.retry || termOfEntry(e) !== q.term) return;
+      const prev = round.queue[i - 1], next = round.queue[i + 1];
+      const nq = Defs.pick({
+        states: Defs.all(), exclude: new Set(round.queue.filter((x) => !x.retry).map((x) => x.id)),
+        avoid: new Set([q.term, termOfEntry(prev), termOfEntry(next)].filter(Boolean)), lastFmt: prev && byId[prev.id] ? byId[prev.id].fmt : null,
+      });
+      if (nq) round.queue[i] = { id: nq.id };
+    };
+    reroll(base - 1);
+    reroll(base);
+    for (let extra = 0; extra < 4; extra++) {
+      const p = spot();
+      if (p > 0) return p;
+      const firsts = round.queue.filter((x) => !x.retry);
+      const last = round.queue[round.queue.length - 1];
+      const lastQ = last ? byId[last.id] : null;
+      const nq = Defs.pick({
+        states: Defs.all(), exclude: new Set(firsts.map((x) => x.id)),
+        avoid: new Set([q.term, lastQ && lastQ.term].filter(Boolean)), lastFmt: lastQ ? lastQ.fmt : null,
+      });
+      if (!nq) break;
+      round.queue.push({ id: nq.id });
+      round.total = Math.max(round.total, firsts.length + 1);
+    }
+    return Math.min(base, round.queue.length);
+  }
 
   function startRound(mode, opts) {
     opts = opts || {};
+    if (mode === 'defs') {
+      if (!Defs.has()) { state.homeNote = 'There are no questions for that yet.'; showHome(); return; }
+      Store.noteRound();
+      state.round = { mode, opts, label: modeLabel(mode, opts), queue: [], idx: 0, results: [], total: DRILL_LEN, retryOK: true, drill: true, finishEarly: false };
+      fillDrill(state.round);
+      showQuestion();
+      return;
+    }
     const ids = buildIds(mode, opts);
     if (!ids.length) {
       state.homeNote = mode === 'fix' ? 'No mistakes waiting. Nice and clean.' : 'There are no questions for that yet.';
@@ -633,6 +797,31 @@
   /* =====================================================================
    * Home
    * ===================================================================== */
+  function termChip(t, st) {
+    const label = `${t.term}: ${Defs.STATE_TEXT[st.state]}`;
+    return h('li', { class: 'dchip is-' + st.state, title: label, 'aria-label': label }, [
+      h('span', { class: 'dmark', 'aria-hidden': 'true', html: st.known ? ICON.check : '' }),
+      h('span', { 'aria-hidden': 'true' }, t.term),
+    ]);
+  }
+  /** Prominent "Key definitions" card: how many are known cold, one chip per term, and the drill button. */
+  function defsCard() {
+    if (!Defs.has()) return null;
+    const L = Defs.list(), st = Defs.all();
+    const n = Defs.coldCount(st);
+    return h('section', { class: 'defs-card' + (n === L.length ? ' is-done' : ''), 'aria-labelledby': 'defsH' }, [
+      h('div', { class: 'defs-head' }, [
+        h('div', null, [
+          h('h2', { class: 'defs-title', id: 'defsH' }, 'Key definitions'),
+          h('p', { class: 'defs-count', 'data-defs-count': String(n) }, [h('strong', null, `${n} of ${L.length}`), ' known cold']),
+        ]),
+        h('button', { class: 'btn btn-primary defs-go', type: 'button', onclick: () => startRound('defs') }, 'Drill them'),
+      ]),
+      h('ul', { class: 'defs-chips', 'aria-label': 'The terms and how well you know each' }, L.map((t) => termChip(t, st[t.id]))),
+      h('p', { class: 'defs-legend', 'aria-hidden': 'true' }, 'Empty dashed: not yet. Half: getting there. Check: known cold.'),
+    ]);
+  }
+
   function showHome() {
     leaveQuestion();
     closeDialog();
@@ -647,9 +836,10 @@
       h('h1', { class: 'wordmark', tabindex: '-1', 'data-focus': '' }, ["Max's ", h('span', null, 'Motion'), ' Test Prep']),
       syncNode(),
       state.homeNote ? h('p', { class: 'home-note', role: 'status' }, state.homeNote) : null,
+      defsCard(),
       h('button', { class: 'btn btn-primary start-btn', type: 'button', onclick: () => startRound('quiz') }, [
         h('span', { class: 't' }, 'Start a quiz'),
-        h('span', { class: 's' }, `${Math.min(QUIZ_LEN, BANK.length)} questions, mixed. Leans on what you missed.`),
+        h('span', { class: 's' }, `${Math.min(QUIZ_LEN, BANK.length)} questions, mixed.` + (Defs.has() ? ` ${DEFS_IN_QUIZ} are key definitions.` : '') + ' Leans on what you missed.'),
       ]),
       h('div', { class: 'home-actions' }, [
         missedN
@@ -832,8 +1022,9 @@
     if (!item.retry) round.results.push({ id: q.id, topic: q.topic, score });
 
     let retryScheduled = false;
-    if (score < 1 && !item.retry && round.retryOK && RETRY_TYPES.has(q.type)) {
-      const pos = Math.min(round.idx + RETRY_GAP, round.queue.length);
+    if (score < 1 && !item.retry && round.retryOK && (round.drill || RETRY_TYPES.has(q.type))) {
+      if (round.drill) fillDrill(round, RETRY_GAP - 1);
+      const pos = round.drill ? drillRetryPos(round, q) : Math.min(round.idx + RETRY_GAP, round.queue.length);
       round.queue.splice(pos, 0, { id: q.id, retry: 'retry' });
       retryScheduled = true;
     } else if (round.mode === 'fix' && score >= 1 && info.pendingClear && round.queue.length - round.idx - 1 >= SEPARATION - 1) {
@@ -841,6 +1032,10 @@
       retryScheduled = true;
     }
     res.retryScheduled = retryScheduled;
+    if (round.drill) {
+      fillDrill(round);                              // keep the next few lined up, using what he knows now
+      if (Defs.allCold()) round.finishEarly = true;  // all 7 known cold: the round ends with the success screen
+    }
 
     if (q.after && ctx.inst) { try { ctx.inst.setParams(q.after); } catch (e) { console.error('after failed', e); } }
     if (ctx.hintEl) { ctx.hintEl.remove(); ctx.hintEl = null; }
@@ -849,7 +1044,7 @@
     ctx.idkBtn.hidden = true;
     ctx.primary.hidden = false;
     ctx.primary.disabled = false;
-    ctx.primaryLabel(round.idx >= round.queue.length - 1 ? 'See results' : 'Next');
+    ctx.primaryLabel(round.idx >= round.queue.length - 1 || round.finishEarly ? 'See results' : 'Next');
     const kh = ctx.bar.querySelector('.keyhint');
     if (kh) kh.textContent = 'Enter goes on. Esc leaves.';
     announce(res.tone === 'good' || score >= 1 ? 'Correct.' : score > 0 ? 'Partly right.' : 'Not yet.');
@@ -872,7 +1067,7 @@
     if (res.plainLines) res.plainLines.forEach((l) => note.appendChild(h('p', null, l)));
     (res.extras || []).forEach((n) => n && note.appendChild(n));
     if (res.model) note.appendChild(h('div', { class: 'note-block' }, [h('span', { class: 'note-label' }, 'A good answer'), h('span', { html: rich(res.model) })]));
-    if (q.explain) note.appendChild(h('p', null, [h('span', { class: 'note-label' }, 'Why'), h('span', { html: rich(q.explain) })]));
+    if (q.explain) note.appendChild(h('p', { class: Defs.inText(q.explain).length ? 'why has-def' : 'why' }, [h('span', { class: 'note-label' }, 'Why'), h('span', { html: richDef(q.explain) })]));
     if (q.example) note.appendChild(h('p', null, [h('span', { class: 'note-label' }, 'Example'), h('span', { html: rich(q.example) })]));
     if (res.showSteps && q.steps && q.steps.length) {
       note.appendChild(h('ol', { class: 'steps' }, q.steps.map((s) => h('li', { html: rich(s) }))));
@@ -890,7 +1085,7 @@
     const round = state.round;
     if (!round) return showHome();
     round.idx++;
-    if (round.idx >= round.queue.length) showEnd(); else showQuestion();
+    if (round.finishEarly || round.idx >= round.queue.length) showEnd(); else showQuestion();
   }
 
   /* =====================================================================
@@ -1466,10 +1661,31 @@
       }
     } catch (e) { return ''; }
   }
+  /** The study card: all 7 official definitions, each with how well he knows it. Big and plain, made to read aloud. */
+  function studyCard() {
+    const st = Defs.all();
+    return h('section', { class: 'study', 'aria-labelledby': 'studyH' }, [
+      h('h2', { class: 'section-title', id: 'studyH' }, 'Your study card'),
+      h('p', { class: 'quiet study-tip' }, 'Read each one out loud. Then cover the card and say it again.'),
+      h('ol', { class: 'study-list' }, Defs.list().map((t) => {
+        const s = st[t.id];
+        return h('li', { class: 'study-row is-' + s.state }, [
+          h('div', { class: 'study-top' }, [
+            h('span', { class: 'study-term' }, t.term),
+            h('span', { class: 'dstate is-' + s.state }, [h('span', { class: 'dmark', 'aria-hidden': 'true', html: s.known ? ICON.check : '' }), Defs.STATE_TEXT[s.state]]),
+          ]),
+          h('p', { class: 'study-def' }, h('span', { class: 'def-hl' }, t.def + '.')),
+        ]);
+      })),
+    ]);
+  }
+
   function showEnd() {
     leaveQuestion();
     state.screen = 'end';
     const round = state.round;
+    const isDrill = round.mode === 'defs';
+    const allCold = isDrill && Defs.allCold();
     const res = round.results;
     const total = res.length;
     const pts = res.reduce((a, r) => a + r.score, 0);
@@ -1480,7 +1696,7 @@
     const line = frac >= 0.9 ? 'Strong round.' : frac >= 0.7 ? 'Good work. The misses below are the ones to look at.' : frac >= 0.4 ? 'Some of this is solid. The misses below show what to work on.' : 'Rough one, and that is useful: now you know exactly what to fix.';
     const missedN = Store.missedIds().length;
 
-    const left = h('section', null, [
+    const left = isDrill ? studyCard() : h('section', null, [
       h('h2', { class: 'section-title' }, 'By topic'),
       h('ul', { class: 'trows' }, Object.keys(byTopic).map((id) => {
         const t = byTopic[id];
@@ -1494,16 +1710,21 @@
         return h('article', { class: 'miss' }, [
           h('p', { class: 'q', html: rich(q.prompt) }),
           h('p', { class: 'a' }, [h('span', { class: 'note-label' }, r.score > 0 ? 'Full answer' : 'Answer'), h('span', { html: rich(answerText(q)) })]),
-          q.explain ? h('p', { class: 'w', html: rich(q.explain) }) : null,
+          q.explain ? h('p', { class: 'w', html: richDef(q.explain) }) : null,
         ]);
       })) : h('p', null, 'Every question was right the first time.'),
     ]);
-    const again = round.mode === 'review' || round.mode === 'mission' ? 'Go through it again' : 'Another round';
-    const screen = h('div', { class: 'endscreen' }, [
+    const again = round.mode === 'review' || round.mode === 'mission' ? 'Go through it again' : isDrill ? 'Drill again' : 'Another round';
+    const coldN = isDrill ? Defs.coldCount() : 0;
+    const topLine = allCold ? 'Read the card out loud one more time, then you are set.'
+      : isDrill ? `${coldN} of ${Defs.list().length} known cold. Drill again to move the rest along. ${line}` : line;
+    const screen = h('div', { class: 'endscreen' + (isDrill ? ' is-drill' : '') }, [
       h('div', { class: 'endtop' }, [
         h('p', { class: 'eyebrow' }, round.label),
-        h('h1', { class: 'bigscore', tabindex: '-1', 'data-focus': '' }, [h('span', null, fmtScore(pts)), h('small', null, `out of ${total}`)]),
-        h('p', null, line),
+        allCold
+          ? h('h1', { class: 'bigscore bigscore--text', tabindex: '-1', 'data-focus': '' }, [h('span', null, `All ${Defs.list().length} known cold`)])
+          : h('h1', { class: 'bigscore', tabindex: '-1', 'data-focus': '' }, [h('span', null, fmtScore(pts)), h('small', null, `out of ${total}`)]),
+        h('p', null, topLine),
         h('div', { class: 'end-actions' }, [
         missedN ? h('button', { class: 'btn btn-pen', type: 'button', onclick: () => startRound('fix') }, `Fix my mistakes (${missedN})`) : null,
         h('button', { class: 'btn btn-primary', type: 'button', onclick: () => startRound(round.mode === 'fix' && !missedN ? 'quiz' : round.mode, round.opts) }, again),
@@ -1513,7 +1734,7 @@
       h('div', { class: 'endgrid' }, [left, right]),
     ]);
     mountScreen(screen);
-    announce(`Round finished. ${fmtScore(pts)} out of ${total}.`);
+    announce(allCold ? `All ${Defs.list().length} definitions known cold.` : `Round finished. ${fmtScore(pts)} out of ${total}.`);
   }
 
   /* =====================================================================
@@ -1584,6 +1805,7 @@
     Fuzzy, Store, QuizStore: QS, state, Types,
     showHome, startRound, next, finalize,
     startIds(ids) { startRound('ids', { ids }); },
+    Defs, startDrill() { startRound('defs'); },
     bank: () => BANK, evalGoal, parseNum, validateAI, buildGradePrompt,
     isAiOff: () => aiOff, whenSampleReady: () => samplePromise,
   };

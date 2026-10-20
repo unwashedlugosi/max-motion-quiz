@@ -233,7 +233,7 @@ strong { font-weight: 700; }
 .choice input:checked ~ .mark::after { transform: scale(1); }
 .choice input:focus-visible ~ .mark { outline: 3px solid var(--accent); outline-offset: 3px; }
 .choice:has(input:focus-visible) { border-color: var(--accent); }
-.choice:hover:not(.is-locked) { border-color: var(--ink); background: var(--note-plain-bg); transform: translateX(2px); }
+.choice:hover:not(.is-locked) { border-color: var(--ink); background: var(--note-plain-bg); }
 .choice.is-picked:not(.is-locked) { border-color: var(--accent); background: var(--note-part-bg); }
 .choice .cbody { min-width: 0; padding-top: 1px; }
 .choice .ctext { display: block; }
@@ -456,4 +456,76 @@ strong { font-weight: 700; }
 @media (max-width: 759px) {
   .qhead { flex-wrap: wrap; row-gap: 2px; }
   .qhead .sync { order: 3; flex-basis: 100%; max-width: none; text-align: left; }
+}
+
+/* ---------- key definitions: home card, chips, official-definition highlight, study card ---------- */
+.defs-card {
+  display: grid; gap: 8px; padding: 10px 14px 10px; margin-bottom: 14px;
+  background: var(--card); border: 3px solid var(--accent); border-radius: var(--hand-radius); box-shadow: var(--pen-shadow);
+}
+.defs-card.is-done { border-color: var(--good); }
+.defs-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.defs-title { font-family: var(--font-hand); font-weight: 400; font-size: 1.55rem; line-height: 1.05; }
+.defs-count { font-size: .98rem; line-height: 1.25; color: var(--ink-soft); }
+.defs-count strong { color: var(--ink); font-size: 1.1rem; }
+.defs-go { min-height: 48px; padding-inline: 16px; flex: none; }
+.defs-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.dchip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 6px;
+  font-size: .86rem; line-height: 1.2; color: var(--ink-soft); background: var(--paper);
+  border: 1.5px dashed var(--ink-soft); border-radius: 999px;
+}
+.dmark {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px;
+  border: 1.5px solid currentColor; border-radius: 50%; font-size: 0; color: inherit; overflow: hidden;
+}
+.dmark .icon, .dmark .ico { width: 11px; height: 11px; display: block; }
+.dchip.is-getting { border-style: solid; border-color: var(--ink); color: var(--ink); }
+.dchip.is-getting .dmark, .dstate.is-getting .dmark { background: linear-gradient(90deg, var(--hl) 50%, transparent 50%); }
+.dchip.is-cold, .dstate.is-cold { border-style: solid; border-color: var(--good); color: var(--ink); font-weight: 700; background: var(--note-good-bg); }
+.dchip.is-cold .dmark, .dstate.is-cold .dmark { background: var(--good); border-color: var(--good); color: var(--paper); }
+.defs-legend { font-size: .78rem; line-height: 1.2; color: var(--ink-soft); }
+
+/* a teacher's official definition, wherever it shows up in bold */
+.def-hl, .why.has-def strong, .miss .w strong {
+  font-weight: 700; color: var(--ink);
+  background: linear-gradient(transparent 52%, var(--swipe) 52% 94%, transparent 94%);
+  padding: 0 3px; border-radius: 2px; -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+.why.has-def strong.def-hl { font-size: 1.06em; }
+.why.has-def strong:not(.def-hl) { background: none; padding: 0; }
+.miss .w strong:not(.def-hl) { background: none; padding: 0; }
+
+.bigscore--text { font-size: clamp(2.2rem, 6vw, 3.4rem); }
+.endscreen.is-drill .endgrid { grid-template-columns: minmax(0, 1fr); }
+.study { display: grid; gap: 8px; align-content: start; }
+.study-tip { font-size: 1rem; }
+.study-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.study-row { padding: 8px 14px 10px 18px; background: var(--card); border: 2px solid var(--ink-soft); border-radius: var(--hand-radius); }
+.study-row.is-cold { border-color: var(--good); }
+.study-row.is-getting { border-color: var(--ink); }
+.study-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.study-term { font-family: var(--font-hand); font-size: 1.45rem; line-height: 1.1; }
+.dstate { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 6px; font-size: .84rem; line-height: 1.2; color: var(--ink-soft); border: 1.5px dashed var(--ink-soft); border-radius: 999px; }
+.dstate.is-getting { border-style: solid; border-color: var(--ink); color: var(--ink); }
+.study-def { margin-top: 2px; font-size: 1.2rem; line-height: 1.45; }
+@media (min-width: 900px) {
+  .endscreen.is-drill .endgrid { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: 40px; }
+  .study-list { grid-template-columns: 1fr 1fr; }
+  .study-row:nth-child(7) { grid-column: 1 / -1; }
+}
+@media (max-height: 820px) and (min-width: 900px) {
+  .defs-card { margin-bottom: 10px; padding-block: 8px; gap: 6px; }
+  .defs-title { font-size: 1.4rem; }
+}
+@media (max-width: 380px) {
+  .defs-head { flex-wrap: wrap; }
+  .defs-go { width: 100%; }
+}
+@media (max-height: 820px) and (min-width: 900px) {
+  .endscreen.is-drill { gap: 14px; }
+  .study-list { gap: 6px; }
+  .study-row { padding: 5px 12px 7px 16px; }
+  .study-def { font-size: 1.1rem; line-height: 1.35; }
+  .study-term { font-size: 1.35rem; }
 }
