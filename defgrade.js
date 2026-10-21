@@ -507,7 +507,7 @@
       res.missingWords = miss.map((i) => (i.key === 'not' ? 'does not' : i.key === 'change' && termId === 'constant-speed' ? 'vary or change' : i.word));
       res.tip = sameRoute
         ? 'That means the same thing. The teacher says: "' + spec.def + '".'
-        : 'Almost. The teacher also uses ' + (res.missingWords.length > 1 ? 'the words ' : 'the word ') + wordsList(res.missingWords.map((w) => '"' + w + '"')) + '.';
+        : 'The teacher also uses ' + (res.missingWords.length > 1 ? 'the words ' : 'the word ') + wordsList(res.missingWords.map((w) => '"' + w + '"')) + '.';
       return res;
     }
     res.verdict = 'correct';
@@ -572,7 +572,7 @@
   }
 
   const api = {
-    gradeDefinition, gradeTerm, defRanges, SPEC, IDS,
+    gradeDefinition, gradeTerm, defRanges, normText: stripMarks, SPEC, IDS,
     _internal: { tokenize, phon, dl, classifyWord, findMatches, scoreLemma, LEX },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
