@@ -10,6 +10,7 @@
  *   q/<questionId>        { seen, correct, lastSeen, streak, prevStreak, hist:[..<=5], updatedAt }
  *   missed/<questionId>   { right, at, day, since, flagged?, updatedAt }     (absent once cleared)
  *   meta                  { counter, rounds }
+ *   session               one small object: today's guided session (date, step, per-step status, ...), PUT whole
  * Question ids are encoded for use as keys (Firebase forbids . $ # [ ] /); today's ids pass through as is.
  *
  * Writes are tiny per-record PATCH / PUT / DELETE calls, so two devices only collide when they answer
@@ -52,7 +53,7 @@
   }
 
   /* ---------------- in-memory data (same shape the app has always used) ---------------- */
-  const fresh = () => ({ v: 1, q: {}, missed: {}, counter: 0, rounds: 0 });
+  const fresh = () => ({ v: 1, q: {}, missed: {}, counter: 0, rounds: 0, session: null });
   let data = fresh();
   const listeners = { status: [], data: [] };
   const emit = (k, a) => listeners[k].slice().forEach((f) => { try { f(a); } catch (e) { console.error(e); } });
@@ -181,6 +182,7 @@
     });
     const meta = val.meta && typeof val.meta === 'object' ? val.meta : {};
     d.rounds = +meta.rounds || 0;
+    d.session = val.session && typeof val.session === 'object' && !Array.isArray(val.session) ? JSON.parse(JSON.stringify(val.session)) : null;
     // counter only has to be ahead of every "at" stamp, so devices agree on how many answers separate two right ones
     d.counter = Math.max(+meta.counter || 0, ...Object.keys(d.missed).map((k) => d.missed[k].at));
     return d;
@@ -188,9 +190,9 @@
   /** Order-independent fingerprint, to tell whether a refresh actually changed anything. */
   const sig = (d) => JSON.stringify(d, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)
     ? Object.keys(v).sort().reduce((o, x) => { o[x] = v[x]; return o; }, {}) : v));
-  const isEmptyServer = (val) => !val || typeof val !== 'object' || (!val.q && !val.missed);
+  const isEmptyServer = (val) => !val || typeof val !== 'object' || (!val.q && !val.missed && !val.session);
 
-  /** Turn app-level changes into writes. changes = { q:{id:rec}, missed:{id:rec|null}, counter?, rounds? } */
+  /** Turn app-level changes into writes. changes = { q:{id:rec}, missed:{id:rec|null}, counter?, rounds?, session? } */
   function toWrites(ch, t) {
     const w = [];
     Object.keys(ch.q || {}).forEach((id) => {
@@ -212,6 +214,7 @@
     if (ch.counter !== undefined) meta.counter = ch.counter;
     if (ch.rounds !== undefined) meta.rounds = ch.rounds;
     if (Object.keys(meta).length) w.push({ m: 'PATCH', p: 'meta', b: meta, t });
+    if (ch.session) { ch.session.updatedAt = t; w.push({ m: 'PUT', p: 'session', b: JSON.parse(JSON.stringify(ch.session)), t }); }
     return w;
   }
 
@@ -227,6 +230,9 @@
       const id = dec(parts[1]), cur = d.missed[id];
       if (cur && cur.updatedAt > w.t) return false;
       if (w.m === 'DELETE') delete d.missed[id]; else d.missed[id] = Object.assign({}, w.b);
+    } else if (parts[0] === 'session') {
+      if (d.session && (d.session.updatedAt || 0) > w.t) return false;
+      d.session = JSON.parse(JSON.stringify(w.b));
     } else if (parts[0] === 'meta') {
       if (w.b.counter !== undefined) d.counter = Math.max(d.counter, w.b.counter);
       if (w.b.rounds !== undefined) d.rounds = Math.max(d.rounds, w.b.rounds);
@@ -286,6 +292,7 @@
     if (!isEmptyServer(val) || outbox.length) { ls.set(KEY_MIGRATED + code, '1'); return; }
     const t = Date.now();
     const ch = { q: {}, missed: {}, counter: old.counter, rounds: old.rounds };
+    if (old.session && typeof old.session === 'object') ch.session = JSON.parse(JSON.stringify(old.session));
     Object.keys(old.q).forEach((id) => { ch.q[id] = Object.assign({ prevStreak: 0, hist: [] }, old.q[id]); });
     Object.keys(old.missed).forEach((id) => { ch.missed[id] = Object.assign({}, old.missed[id]); });
     const w = toWrites(ch, t);
