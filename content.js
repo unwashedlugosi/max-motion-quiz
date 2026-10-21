@@ -13,6 +13,101 @@
     { id: 'negative-acceleration', term: 'Negative Acceleration', def: 'When an object\'s speed decreases' },
     { id: 'positive-acceleration', term: 'Positive Acceleration', def: 'When an object\'s speed increases' }
   ];
+  /* Memory aids for the typing trainer (app.js), one entry per term id above.
+   *   hook / mnemonic / picture / gesture / baseball: shown in the teach panel and the "Memory tricks" view.
+   *   teach: the diagram and one-line caption for the teach panel. `diagram` is mounted with Diagrams.mount;
+   *          `then` (optional) is applied with setParams after `afterMs`.
+   *          `baseball` (optional) replaces `diagram` when Diagrams.has('baseball') (diagrams-d.js). */
+  window.DEF_MEMORY = {
+    'motion': {
+      hook: 'Motion means you Change Places.',
+      mnemonic: 'C-P: Change in Position',
+      picture: 'A chess piece moving to a new square.',
+      gesture: 'Move your hand from one spot to another.',
+      baseball: "You throw a pitch. The ball's position changes from your hand to the catcher's mitt. That's motion.",
+      teach: {
+        caption: "Its position keeps changing. That's motion.",
+        diagram: { type: 'dtgraph', params: { shape: 'constant', xMax: 10, yMax: 100, xStep: 2, yStep: 20, xLabel: 'Time (s)', yLabel: 'Position (m)' } },
+        baseball: { diagram: { type: 'baseball', params: { scenario: 'pitch', caption: 'motion' } } }
+      }
+    },
+    'acceleration': {
+      hook: 'Press the accelerator and your speed changes.',
+      mnemonic: 'Race Car Velocity = Rate of Change in Velocity',
+      picture: 'A speedometer needle climbing.',
+      gesture: 'Press an imaginary gas pedal.',
+      baseball: 'Your arm takes the ball from 0 to 50 mph. Its speed changes, so it accelerates.',
+      teach: {
+        caption: 'Watch the speedometer needle move: the speed is changing.',
+        diagram: { type: 'rates', params: { lanes: 'B', v0B: 0, aB: 2, focus: 'speed', titleB: 'Car' } },
+        baseball: { diagram: { type: 'baseball', params: { scenario: 'windup' } } }
+      }
+    },
+    'reference-point': {
+      hook: 'Where the watcher stands.',
+      mnemonic: 'LOOM = Location Of the Observer of Motion',
+      picture: 'A person on the platform watching the train go by.',
+      gesture: 'Point to your own eyes.',
+      baseball: 'The catcher sees the ball coming straight at him. A fan in the stands sees it go left to right. Where you watch from is your reference point.',
+      teach: {
+        caption: 'Who is watching decides what looks like it\'s moving.',
+        diagram: { type: 'reference', params: { viewpoint: 'platform' } },
+        then: { afterMs: 3000, params: { viewpoint: 'train' } },
+        baseball: { diagram: { type: 'baseball', params: { scenario: 'viewpoint', observer: 'catcher' } }, then: { afterMs: 3000, params: { observer: 'stands' } } }
+      }
+    },
+    'velocity': {
+      hook: 'Speed tells how fast. Velocity tells how fast and which way.',
+      mnemonic: 'Dogs Make Our Shoes Dirty = Describing a Moving Object using Speed and Direction',
+      picture: 'An arrow pointing on a compass.',
+      gesture: 'Point in a direction while you say the speed.',
+      baseball: '50 mph is the speed. Toward home plate is the direction. 50 mph toward home plate is the velocity.',
+      teach: {
+        caption: 'Speed alone could go anywhere. Speed and direction pin it down.',
+        diagram: { type: 'possible', params: { who: 'snail', speed: 12, unit: 'cm/s', time: 5, direction: null } },
+        then: { afterMs: 2000, params: { direction: 'N' } },
+        baseball: { diagram: { type: 'baseball', params: { scenario: 'pitch', caption: 'velocity' } } }
+      }
+    },
+    'constant-speed': {
+      hook: 'Cruise control.',
+      mnemonic: 'Never Varies, Never Changes: does not vary or change',
+      picture: 'Dots with the same gap every second.',
+      gesture: 'Glide a flat hand straight across.',
+      baseball: 'A runner jogging to first at the same pace the whole way. The speed does not vary or change.',
+      teach: {
+        caption: 'Same gap every second. The speed does not vary or change.',
+        diagram: { type: 'accel', params: { v0: 10, a: 0 } },
+        baseball: { diagram: { type: 'baseball', params: { scenario: 'steady' } } }
+      }
+    },
+    'negative-acceleration': {
+      hook: 'Negative is a downer.',
+      mnemonic: 'Negative = speed Decreases (D for Down)',
+      picture: 'A car slowing to a stop sign.',
+      gesture: 'Thumbs down.',
+      baseball: "The catcher's mitt stops the ball. Its speed decreases to 0.",
+      pair: 'Positive and negative acceleration use the same sentence. Only one word changes: increases or decreases.',
+      teach: {
+        caption: 'The gaps shrink: speed decreases.',
+        diagram: { type: 'accel', params: { v0: 20, a: -4, stopSign: true } },
+        baseball: { diagram: { type: 'baseball', params: { scenario: 'catch' } } }
+      }
+    },
+    'positive-acceleration': {
+      hook: 'Positive is a plus.',
+      mnemonic: 'Positive = speed Increases (I for Up, like going up a hill of numbers)',
+      picture: 'A car pulling away faster and faster.',
+      gesture: 'Thumbs up.',
+      baseball: 'Your arm whips the ball forward. Its speed increases.',
+      pair: 'Positive and negative acceleration use the same sentence. Only one word changes: increases or decreases.',
+      teach: {
+        caption: 'The gaps grow: speed increases.',
+        diagram: { type: 'accel', params: { v0: 0, a: 3 } },
+        baseball: { diagram: { type: 'baseball', params: { scenario: 'windup' } } }
+      }
+    }
+  };
   window.TOPICS = [
     { id: 'defs',     name: 'The 7 key definitions' },
     { id: 'motion',   name: 'Motion & reference point' },
