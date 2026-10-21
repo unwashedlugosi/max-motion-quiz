@@ -167,7 +167,8 @@
         }
         info = { wasMissed: !!data.missed[id], cleared: false, pendingClear: false };
         const m = data.missed[id];
-        if (score >= 1) {
+        if (ev.nm) { /* typing-trainer answer: history only, never the fix-my-mistakes list */ }
+        else if (score >= 1) {
           if (m) {
             if (m.right === 0) { m.right = 1; m.at = data.counter; m.day = today; info.pendingClear = true; changes.missed[id] = m; }
             else if (m.day !== today || data.counter - m.at >= SEPARATION) { delete data.missed[id]; info.cleared = true; changes.missed[id] = null; }
@@ -209,6 +210,8 @@
 
     /** Record one answer. isRetry: not a first attempt (doesn't change seen/correct/hist, still counts for clearing). */
     const answer = (id, score, isRetry) => run({ k: 'a', id, s: score, r: isRetry ? 1 : 0, t: Date.now() });
+    /** A from-memory answer of the typing trainer (synthetic question id): kept in the synced history, never on the mistakes list. */
+    const answerSynth = (id, score) => run({ k: 'a', id, s: score, r: 0, t: Date.now(), nm: 1 });
     /** Change the score of the most recent first attempt (self-check / "I think I was right"). */
     const amend = (id, newScore, flag) => { run({ k: 'm', id, s: newScore, f: flag ? 1 : 0, t: Date.now() }); };
     function qMastery(id) {
@@ -240,7 +243,7 @@
     const today = () => ymd(Date.now());
     const session = () => D().session || null;
     const putSession = (obj) => { run({ k: 's', session: obj, t: Date.now() }); };
-    return { load, reset, get, isMissed, answer, amend, qMastery, topicMastery, missedIds, noteRound, today, session, putSession, isPersistent: () => QS.isPersistent(), _data: D };
+    return { load, reset, get, isMissed, answer, answerSynth, amend, qMastery, topicMastery, missedIds, noteRound, today, session, putSession, isPersistent: () => QS.isPersistent(), _data: D };
   })();
 
   /* =====================================================================
@@ -772,7 +775,7 @@
   /* =====================================================================
    * App state + selection
    * ===================================================================== */
-  const state = { screen: 'home', ctx: null, round: null, dialog: null, homeNote: '', shownNote: '' };
+  const state = { screen: 'home', ctx: null, round: null, tr: null, tview: null, dialog: null, homeNote: '', shownNote: '' };
 
   function weightOf(q, tm) {
     let w = 1;
@@ -1024,9 +1027,9 @@
   /* =====================================================================
    * Today's session: a guided plan that runs itself. Steps run in order; each has a pass mark, and a step whose
    * pass mark is already met is skipped and shown as already passed.
-   *   1 Definitions from memory   (7 recall shorts, one round, no retries; terms missed are drilled first in step 3)
+   *   1 Definitions from memory   (type each of the 7 once, no teaching; terms missed come first in step 3)
    *   2 Fix the review sheet misses (Tonight's focus; pass: all 6 fixed; at most 2 rounds)
-   *   3 Know the 7 definitions cold (Key definitions drill; pass: 7 of 7 known cold; at most 2 rounds)
+   *   3 Type the 7 definitions    (the typing trainer; pass: all 7 learned; no round cap, he can stop and continue)
    *   4 Graphs check               (10 graphs questions; pass: 8 first try; else Motion Mission, then 10 more)
    *   5 Teach it back              (5 say-it-out-loud cards; "Not yet" lines up 2 related questions)
    *   6 Wrap up                    (done screen)
@@ -1035,9 +1038,9 @@
    * Keys use letters ('s1'..'s5') because the database turns small integer keys into arrays.
    * ===================================================================== */
   const SESS_STEPS = [
-    { n: 1, name: 'Definitions from memory', why: 'Writing each definition from memory shows which ones you really know.', time: 'about 8 minutes' },
+    { n: 1, name: 'Definitions from memory', why: 'Typing each definition from memory shows which ones you really know.', time: 'about 5 minutes' },
     { n: 2, name: 'Fix the review sheet misses', why: 'These are the six things you missed on the review sheet, so they come first.', time: 'about 15 minutes' },
-    { n: 3, name: 'Know the 7 definitions cold', why: "Your teacher's exact words earn points, so we drill them until all seven stick.", time: 'about 12 minutes' },
+    { n: 3, name: 'Type the 7 definitions', why: "Your teacher's exact words earn points, so you type them again and again, with a trick and a picture for each, until all seven stick. Stop whenever you need to and pick up where you left off.", time: 'about 15 minutes' },
     { n: 4, name: 'Graphs check', why: 'Distance-time graphs are a big part of the test, so this checks that you can read them.', time: 'about 10 minutes' },
     { n: 5, name: 'Teach it back', why: 'Saying an answer out loud shows you can explain it, not just pick it.', time: 'about 10 minutes' },
     { n: 6, name: 'Wrap up', why: 'A last look at what you finished and what to do next.', time: 'about 2 minutes' },
@@ -1119,9 +1122,9 @@
 
     /** Is a step's pass mark already met (so it is skipped)? Only asked of a step that has not started. */
     function skipReason(n) {
-      if (n === 1) return recallIds().length === 0 || Defs.allCold() ? 'All seven are already known cold.' : '';
+      if (n === 1) return !Defs.has() || !DG || Trainer.allLearned() ? 'All seven are already learned.' : '';
       if (n === 2) return !Focus.has() || Focus.allFixed() ? 'All six are already fixed.' : '';
-      if (n === 3) return !Defs.has() || Defs.allCold() ? 'All seven are already known cold.' : '';
+      if (n === 3) return !Defs.has() || !DG || Trainer.allLearned() ? 'All seven are already learned.' : '';
       if (n === 5) return Array.isArray(window.TEACH_CARDS) && window.TEACH_CARDS.length ? '' : 'There are no cards.';
       return '';
     }
@@ -1149,7 +1152,7 @@
       if (!S) return null;
       return update((o) => {
         if (o.st.s2 === 'practice' && Focus.allFixed()) o.st.s2 = 'done';
-        if (o.st.s3 === 'practice' && Defs.allCold()) o.st.s3 = 'done';
+        if (o.st.s3 === 'practice' && Trainer.allLearned()) o.st.s3 = 'done';
       }) || S;
     }
 
@@ -1173,7 +1176,7 @@
     /** Names of what is still open in a "keep practicing" step (live). */
     function openItems(n) {
       if (n === 2) { const st = Focus.all(); return Focus.list().filter((c) => !st[c.id].fixed).map((c) => c.label); }
-      if (n === 3) { const st = Defs.all(); return Defs.list().filter((t) => !st[t.id].known).map((t) => t.term); }
+      if (n === 3) { const st = Trainer.all(); return Defs.list().filter((t) => !st[t.id].learned).map((t) => t.term); }
       return [];
     }
     /** A break is offered after steps 2 and 4, on the next screen that shows a step. */
@@ -1216,6 +1219,7 @@
     closeDialog();
     state.screen = 'interstitial';
     state.round = null;
+    state.tr = null;
     const S = Session.get();
     if (!S) { showHome(); return; }
     if (S.step > 5) { showSessionDone(); return; }
@@ -1225,7 +1229,7 @@
     const openNow = n === 2 || n === 3 ? Session.openItems(n) : [];
     let tag = '', why = info.why, time = info.time;
     if (n === 2 && S.rounds.s2 > 0) { tag = 'Round 2 of 2'; why = `Still not fixed: ${joinList(openNow)}. One more round to move them along.`; time = 'about 8 minutes'; }
-    else if (n === 3 && S.rounds.s3 > 0) { tag = 'Round 2 of 2'; why = `Not known cold yet: ${joinList(openNow)}. One more drill to move them along.`; time = 'about 8 minutes'; }
+    else if (n === 3 && openNow.length && openNow.length < Defs.list().length) { tag = `${Defs.list().length - openNow.length} of ${Defs.list().length} learned`; why = `Still to learn: ${joinList(openNow)}. Pick up where you left off.`; time = 'as long as it takes'; }
     else if (n === 4 && sub === 'mission') { tag = 'Warm-up'; why = 'That was under 8 of 10, so first some Motion Mission questions that use the same graph ideas.'; time = 'about 8 minutes'; }
     else if (n === 4 && sub === 'g2') { tag = 'Second try'; why = 'Now 10 graph questions again, with the Motion Mission ideas fresh.'; time = 'about 6 minutes'; }
     const dots = h('ol', { class: 'istrip', 'aria-hidden': 'true' }, Session.rows(S).map((r) => h('li', { class: 'is-' + r.state })));
@@ -1275,7 +1279,7 @@
     const n = S.step, tag = { step: n };
     if (n === 1) startRecall(tag);
     else if (n === 2) startRound('focus', { session: tag, planMax: SESSION_FOCUS_PLAN, fillExtra: 3 });
-    else if (n === 3) startRound('defs', { session: tag, prio: Defs.list().map((t) => t.id).filter((id) => S.s1[id] === 0) });
+    else if (n === 3) startTrainer({ session: tag, prio: Defs.list().map((t) => t.id).filter((id) => S.s1[id] === 0) });
     else if (n === 4) {
       if (S.sub.s4 === 'mission') startRound('mission', { session: tag, ids: Session.missionIds(), label: 'Motion Mission' });
       else startRound('ids', { session: tag, ids: Session.graphsIds(), label: 'Graphs check' });
@@ -1283,11 +1287,8 @@
     else showSessionDone();
   }
   function startRecall(tag) {
-    const ids = Session.recallIds();
-    if (!ids.length) { state.homeNote = 'There are no questions for that yet.'; showHome(); return; }
-    Store.noteRound();
-    state.round = { mode: 'recall', opts: {}, label: modeLabel('recall'), queue: ids.map((id) => ({ id })), idx: 0, results: [], total: ids.length, retryOK: false, noHint: true, session: tag };
-    showQuestion();
+    if (!DG || !Defs.has()) { state.homeNote = 'There are no questions for that yet.'; showHome(); return; }
+    startTrainer({ mode: 'recall', session: tag });
   }
 
   /** A round that belongs to the session just ended: record the result, then on to the next interstitial. */
@@ -1302,7 +1303,7 @@
       o.rounds[k]++;
       if (n === 1) {
         const by = {};
-        res.forEach((r) => { const q = byId[r.id]; if (q && q.term) by[q.term] = r.score >= 1 ? 1 : 0; });
+        res.forEach((r) => { const tm = r.term || (byId[r.id] && byId[r.id].term); if (tm) by[tm] = r.score >= 1 ? 1 : 0; });
         o.s1 = by; o.res.s1 = `${right} of ${tot}`;
         o.st.s1 = 'done'; o.step = 2;
         o.last = `Definitions from memory: ${right} of ${tot} right.` + (right < tot ? ' The ones you missed come first in step 3.' : '');
@@ -1312,10 +1313,8 @@
         else if (o.rounds.s2 >= SESSION_FOCUS_ROUNDS) { o.st.s2 = 'practice'; o.step = 3; o.last = `${fx} of ${L} fixed. The rest are marked keep practicing.`; }
         else o.last = `${fx} of ${L} fixed so far.`;
       } else if (n === 3) {
-        const L = Defs.list().length, cd = Defs.coldCount();
-        if (Defs.allCold()) { o.st.s3 = 'done'; o.step = 4; o.last = `All ${L} definitions are known cold.`; }
-        else if (o.rounds.s3 >= SESSION_DEFS_ROUNDS) { o.st.s3 = 'practice'; o.step = 4; o.last = `${cd} of ${L} known cold. The rest are marked keep practicing.`; }
-        else o.last = `${cd} of ${L} known cold so far.`;
+        const L = Defs.list().length;
+        o.st.s3 = 'done'; o.step = 4; o.last = `All ${L} definitions are learned.`;
       } else if (n === 4) {
         const sub = o.sub.s4 || 'g1';
         if (sub === 'mission') { o.sub.s4 = 'g2'; o.last = `Motion Mission: ${right} of ${tot} right the first time.`; }
@@ -1440,23 +1439,24 @@
     closeDialog();
     state.screen = 'sessdone';
     state.round = null;
+    state.tr = null;
     Session.reconcile();
     const S = Session.get();
     if (!S) { showHome(); return; }
     const rows = Session.rows(S);
     const detail = (n, st_) => {
       const s = S.st['s' + n];
-      if (st_ === 'skipped') return n === 1 || n === 3 ? 'Already known cold, so skipped.' : 'Already fixed, so skipped.';
+      if (st_ === 'skipped') return n === 1 || n === 3 ? 'Already learned, so skipped.' : 'Already fixed, so skipped.';
       if (n === 1) return S.res.s1 ? `${S.res.s1} right from memory.` : '';
       if (n === 2) return s === 'practice' ? 'Still not fixed: ' + joinList(Session.openItems(2)) + '.' : 'All six fixed.';
-      if (n === 3) return s === 'practice' ? 'Not known cold yet: ' + joinList(Session.openItems(3)) + '.' : 'All seven known cold.';
+      if (n === 3) return s === 'practice' ? 'Not learned yet: ' + joinList(Session.openItems(3)) + '.' : 'All seven learned.';
       if (n === 4) return S.res.s4 ? `${S.res.s4} right the first time.` + (s === 'practice' ? ' Worth another look.' : '') : '';
       if (n === 5) return S.res.s5 ? `${S.res.s5} marked got it.` : '';
       return '';
     };
     const practiceBtn = (n) => {
       if (n === 2) return h('button', { class: 'btn btn-small', type: 'button', 'data-practice': 's2', onclick: () => startRound('focus', { fromDone: 'focus', planMax: SESSION_FOCUS_PLAN, fillExtra: 3 }) }, 'Practice these now');
-      if (n === 3) return h('button', { class: 'btn btn-small', type: 'button', 'data-practice': 's3', onclick: () => startRound('defs', { fromDone: 'defs' }) }, 'Practice these now');
+      if (n === 3) return h('button', { class: 'btn btn-small', type: 'button', 'data-practice': 's3', onclick: () => startTrainer({ fromDone: 'type' }) }, 'Practice these now');
       if (n === 4) return h('button', { class: 'btn btn-small', type: 'button', 'data-practice': 's4', onclick: () => startRound('ids', { fromDone: 'graphs', ids: Session.graphsIds(), label: 'Graphs check' }) }, 'Practice graphs now');
       return null;
     };
@@ -1491,10 +1491,624 @@
   }
 
   /* =====================================================================
+   * Type the 7 definitions: the typing trainer.
+   *   Grading is DefGrade (defgrade.js), always: it is the judge, so offline and online behave the same. Spelling never matters.
+   *   Every from-memory answer is kept through the Store as a synthetic question, so it follows Max to every device:
+   *     type-def-<term>   typing the definition from the term     (score 1 right, 0.5 almost, 0 wrong)
+   *     type-term-<term>  typing the term from the definition     (score 1 right, 0 wrong)
+   *   A term is LEARNED when, from those histories:
+   *     - it has at least 2 right from-memory definition answers (separate appearances; the copy step and hinted tries never count),
+   *     - the latest from-memory definition answer was right, and
+   *     - the latest reverse (term) answer was right.
+   *   A round runs until all 7 are learned or he stops. Terms come in gradually: 3 at a time, and the next one joins when
+   *   one of the active ones has its first right answer from memory.
+   * ===================================================================== */
+  const DG = window.DefGrade;
+  const TR_ROTATION = 3;       // terms in rotation at the start; a new one joins each time one has 1 right from memory
+  const TR_RETURN_AT = 3;      // a card that was missed comes back from memory this many cards later (2 others in between)
+  const memOf = (id) => (window.DEF_MEMORY && window.DEF_MEMORY[id]) || {};
+  const termOf = (id) => Defs.list().find((t) => t.id === id) || { id, term: id, def: '' };
+  const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+  /** "Change in position" -> "C_____ i_ p_______" */
+  const skeletonOf = (s) => String(s).replace(/[A-Za-z]+(?:'[A-Za-z]+)?/g, (w) => w.charAt(0) + w.slice(1).replace(/[A-Za-z]/g, '_'));
+  /** The first letters of the mnemonic's capital words in bold: "**R**ace **C**ar **V**elocity = **R**ate of ..." */
+  function mnemonicNode(s) {
+    const out = [];
+    String(s).split(/([A-Za-z][A-Za-z']*)/).forEach((part, i) => {
+      if (i % 2 === 0) { if (part) out.push(part); return; }
+      if (/^[A-Z]{2,}$/.test(part)) out.push(h('b', null, part));
+      else if (/^[A-Z]/.test(part)) out.push(h('b', null, part.charAt(0)), part.slice(1));
+      else out.push(part);
+    });
+    return h('span', { class: 'mn' }, out);
+  }
+  /** The teacher's definition, character for character, with the chosen key words lit up. keys: array of keys | null (all). */
+  function defNode(termId, keys, cls) {
+    const def = termOf(termId).def, out = [];
+    let pos = 0;
+    DG.defRanges(termId, keys).forEach((r) => {
+      if (r[0] < pos) return;
+      if (r[0] > pos) out.push(def.slice(pos, r[0]));
+      out.push(h('mark', { class: cls || 'def-key' }, def.slice(r[0], r[1])));
+      pos = r[1];
+    });
+    if (pos < def.length) out.push(def.slice(pos));
+    return h('span', { class: 'tr-def' }, out);
+  }
+  /** What he typed, with the matched key words underlined and the teacher's spelling in small text when it differs. */
+  function typedNode(text, found) {
+    const src = DG.normText(text), out = [];
+    let pos = 0;
+    const same = (a, b) => String(a).toLowerCase().replace(/[^a-z]/g, '') === String(b).toLowerCase().replace(/[^a-z]/g, '');
+    (found || []).filter((f) => f.start >= 0).sort((a, b) => a.start - b.start).forEach((f) => {
+      if (f.start < pos) return;
+      if (f.start > pos) out.push(src.slice(pos, f.start));
+      out.push(h('span', { class: 'tt-got' }, [h('u', null, src.slice(f.start, f.end)), same(src.slice(f.start, f.end), f.word) ? null : h('small', { class: 'tt-fix' }, f.word)]));
+      pos = f.end;
+    });
+    if (pos < src.length) out.push(src.slice(pos));
+    return h('p', { class: 'tt-typed', 'data-typed': '' }, out);
+  }
+  const exactBlock = (termId) => h('div', { class: 'note-block exact-def tr-exact' }, [
+    h('span', { class: 'note-label' }, "The teacher's exact words"),
+    h('strong', { class: 'def-hl' }, [termOf(termId).term + ': ', h('span', { 'data-exact': '' }, termOf(termId).def)]),
+  ]);
+  const memoryLines = (termId, small) => {
+    const m = memOf(termId);
+    return [
+      m.mnemonic ? h('p', { class: 'tr-mn' + (small ? ' is-small' : '') }, [h('span', { class: 'note-label' }, 'Memory trick'), mnemonicNode(m.mnemonic)]) : null,
+      m.baseball ? h('p', { class: 'tr-bb' + (small ? ' is-small' : '') }, [h('span', { class: 'note-label' }, 'Baseball version'), m.baseball]) : null,
+    ];
+  };
+
+  const Trainer = (function () {
+    const ids = () => Defs.list().map((t) => t.id);
+    const hist = (key) => { const r = Store.get(key); return r && Array.isArray(r.hist) ? r.hist : []; };
+    function status(id) {
+      const dh = hist('type-def-' + id), th = hist('type-term-' + id);
+      const cm = dh.filter((s) => s >= 1).length;
+      const latestOK = dh.length > 0 && dh[dh.length - 1] >= 1;
+      const revOK = th.length > 0 && th[th.length - 1] >= 1;
+      const learned = cm >= 2 && latestOK && revOK;
+      return { cm, latestOK, revOK, learned, attempts: dh.length, state: learned ? 'cold' : (cm >= 1 || revOK) ? 'getting' : 'not' };
+    }
+    const all = () => { const o = {}; ids().forEach((id) => { o[id] = status(id); }); return o; };
+    const learnedCount = (st) => ids().filter((id) => (st || all())[id].learned).length;
+    const allLearned = () => { const st = all(); return ids().length > 0 && ids().every((id) => st[id].learned); };
+    /** Terms in rotation now: every unlearned term that already has a right answer, plus up to 3 that have none yet. */
+    function active(order) {
+      const st = all(), out = [];
+      let fresh = 0;
+      order.forEach((id) => {
+        const s = st[id];
+        if (s.learned) return;
+        if (s.cm === 0) { if (fresh < TR_ROTATION) { out.push(id); fresh++; } } else out.push(id);
+      });
+      return out;
+    }
+    const defNeeded = (s) => !(s.cm >= 2 && s.latestOK);
+    const revNeeded = (s) => !s.revOK && s.cm >= 1;
+    /** Is a queued card still worth showing? */
+    function wanted(e) {
+      const s = status(e.term);
+      if (s.learned) return false;
+      return e.kind === 'rev' ? !s.revOK : defNeeded(s);
+    }
+    /** Keep a from-memory answer (never the copy step, never a hinted try). */
+    const record = (kind, id, score) => Store.answerSynth((kind === 'rev' ? 'type-term-' : 'type-def-') + id, score);
+    return { ids, status, all, learnedCount, allLearned, active, defNeeded, revNeeded, wanted, record, STATE_TEXT: { not: 'not yet', getting: 'getting there', cold: 'learned' } };
+  })();
+
+  /* ---- the card queue ---- */
+  function trPick(tr) {
+    const act = Trainer.active(tr.order);
+    if (!act.length) return null;
+    const tail = tr.queue.slice(-2).map((e) => e.term);
+    const ahead = new Set(tr.queue.slice(tr.idx).map((e) => e.kind + ':' + e.term));
+    const cands = [];
+    act.forEach((id) => {
+      const s = Trainer.status(id);
+      if (Trainer.defNeeded(s)) cands.push({ kind: 'def', term: id, w: 1 + (s.cm === 0 ? 2 : 0) + (s.attempts === 0 ? 1 : 0) });
+      if (Trainer.revNeeded(s)) cands.push({ kind: 'rev', term: id, w: Trainer.defNeeded(s) ? 1.2 : 3 });
+    });
+    let pool = cands.filter((c) => !ahead.has(c.kind + ':' + c.term));
+    if (!pool.length) pool = cands;
+    const apart = pool.filter((c) => tail.indexOf(c.term) < 0);
+    if (apart.length) pool = apart;
+    if (!pool.length) return null;
+    const ws = pool.map((c) => c.w * Math.pow(0.55, tr.shown[c.kind + ':' + c.term] || 0));
+    let r = Math.random() * ws.reduce((a, b) => a + b, 0), k = 0;
+    for (; k < pool.length; k++) { r -= ws[k]; if (r <= 0) break; }
+    const c = pool[Math.min(k, pool.length - 1)];
+    return { kind: c.kind, term: c.term };
+  }
+  function trFill(tr, minAhead) {
+    let guard = 0;
+    while (tr.queue.length - tr.idx < (minAhead === undefined ? 5 : minAhead + 1) && guard++ < 24) {
+      const c = trPick(tr);
+      if (!c) break;
+      tr.queue.push(c);
+    }
+  }
+  /** A missed card comes back from memory a few cards later. */
+  function trRequeue(tr, entry) {
+    trFill(tr, TR_RETURN_AT);
+    tr.queue.splice(Math.min(tr.idx + TR_RETURN_AT, tr.queue.length), 0, { kind: entry.kind, term: entry.term, retry: true });
+    trFill(tr);
+  }
+
+  function startTrainer(opts) {
+    opts = opts || {};
+    if (!DG || !Defs.has()) { state.homeNote = 'There are no definitions to type yet.'; showHome(); return; }
+    Store.noteRound();
+    const ids = Trainer.ids();
+    const prio = (opts.prio || []).filter((x) => ids.indexOf(x) >= 0);
+    const order = prio.concat(ids.filter((x) => prio.indexOf(x) < 0));
+    state.round = null;
+    const tr = {
+      mode: opts.mode || 'free', session: opts.session || null, fromDone: opts.fromDone || null, label: opts.mode === 'recall' ? 'Definitions from memory' : 'Type the 7 definitions',
+      order, queue: [], idx: 0, results: [], shown: {}, cur: null, total: ids.length, startLearned: Trainer.learnedCount(),
+    };
+    state.tr = tr;
+    if (tr.mode === 'recall') tr.queue = ids.map((t) => ({ kind: 'def', term: t }));
+    trAdvance(true);
+  }
+  function trAdvance(first) {
+    const tr = state.tr;
+    if (!tr) return showHome();
+    if (!first) tr.idx++;
+    if (tr.mode === 'recall') {
+      if (tr.idx >= tr.queue.length) return trFinish();
+    } else {
+      if (Trainer.allLearned()) return trFinish();
+      trFill(tr);
+      while (tr.queue[tr.idx] && !Trainer.wanted(tr.queue[tr.idx])) { tr.idx++; trFill(tr); }
+      if (!tr.queue[tr.idx]) return trFinish();
+    }
+    showTrainerCard();
+  }
+  function trFinish() {
+    const tr = state.tr;
+    if (!tr) return showHome();
+    if (tr.mode === 'recall') return sessionRoundEnd({ session: tr.session, results: tr.results, mode: 'recall' });
+    if (Trainer.allLearned()) return showTrainerEnd();
+    trStop();
+  }
+  /** "Stop for now": everything is already saved. */
+  function trStop() {
+    const tr = state.tr;
+    leaveTrainerView();
+    if (tr && tr.fromDone) { state.tr = null; showSessionDone(); return; }
+    state.homeNote = tr && tr.mode !== 'recall' ? `Saved. ${Trainer.learnedCount()} of ${Trainer.ids().length} learned so far.` : '';
+    showHome();
+  }
+
+  /* ---- views and their cleanup ---- */
+  function leaveTrainerView() {
+    const v = state.tview;
+    state.tview = null;
+    if (!v) return;
+    if (v.timer) clearTimeout(v.timer);
+    (v.hosts || []).forEach((o) => { if (o.timer) { clearTimeout(o.timer); o.timer = null; } });
+    if (v.io) { try { v.io.disconnect(); } catch (e) { /* ignore */ } }
+    (v.insts || []).forEach((i) => { try { i.destroy(); } catch (e) { console.error('destroy failed', e); } });
+    v.insts = [];
+  }
+  /** Mount the diagram for a term (baseball version when diagrams-d.js is loaded, else the plain one), with its auto-playing reveal. */
+  function mountTeachDiagram(host, termId, view) {
+    const t = memOf(termId).teach;
+    if (!t || !window.Diagrams) return null;
+    const useBall = !!(t.baseball && window.Diagrams.has && window.Diagrams.has('baseball'));
+    const cfg = useBall ? t.baseball : t;
+    const inst = window.Diagrams.mount(host, Object.assign({}, cfg.diagram, { interactive: false }), {});
+    view.insts.push(inst);
+    if (cfg.then) {
+      view.timer = setTimeout(() => { view.timer = null; try { inst.setParams(cfg.then.params); } catch (e) { console.error('reveal failed', e); } }, reduceMotion() ? 0 : cfg.then.afterMs);
+    }
+    host.setAttribute('data-diagram', useBall ? 'baseball' : cfg.diagram.type);
+    return inst;
+  }
+
+  function trHead(tr) {
+    const L = Trainer.ids().length, st = Trainer.all(), n = Trainer.learnedCount(st);
+    const recall = tr.mode === 'recall';
+    const shownN = Math.min(tr.idx + 1, tr.total);
+    return h('div', { class: 'qhead tr-head' }, [
+      h('button', { class: 'btn btn-quiet btn-small', type: 'button', 'data-tr-stop': '', onclick: () => (recall ? askLeaveTrainer() : trStop()) }, recall ? 'Leave' : 'Stop for now'),
+      h('div', { class: 'progress tr-progress' }, recall
+        ? [h('span', { class: 'ptext' }, `${shownN} / ${tr.total}`), h('span', { class: 'pbar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(Math.round(tr.idx / tr.total * 100)), 'aria-label': 'Round progress' }, h('i', { style: 'width:' + Math.round(tr.idx / tr.total * 100) + '%' }))]
+        : [h('span', { class: 'ptext tr-count', 'data-learned': String(n) }, [h('strong', null, `${n} of ${L}`), ' learned']),
+          h('ul', { class: 'defs-chips tr-mini-chips', 'aria-label': 'The terms and how well you know each' }, Defs.list().map((t) => termChip(t, { state: st[t.id].state, known: st[t.id].learned }, Trainer.STATE_TEXT)))]),
+      syncNode(),
+    ]);
+  }
+  function askLeaveTrainer() {
+    openDialog({
+      title: 'Leave this round?', body: 'Your answers so far are saved. When you come back, this step starts again from the first definition.', focusIndex: 0,
+      actions: [{ label: 'Keep going', primary: true }, { label: 'Leave', onClick: () => { leaveTrainerView(); showHome(); } }],
+    });
+  }
+
+  /* ---- one card ---- */
+  function showTrainerCard() {
+    leaveQuestion();
+    leaveTrainerView();
+    closeDialog();
+    const tr = state.tr;
+    const entry = tr.queue[tr.idx];
+    const key = entry.kind + ':' + entry.term;
+    tr.shown[key] = (tr.shown[key] || 0) + 1;
+    tr.cur = { entry, phase: 'ask', hints: 0, hinted: false, text: '', res: null, before: Trainer.status(entry.term) };
+    state.screen = 'trainer';
+    state.tview = { insts: [], timer: null, io: null };
+    const body = h('div', { class: 'tr-body', 'aria-live': 'polite' });
+    tr.bodyEl = body;
+    mountScreen(h('div', { class: 'qscreen tr-screen', 'data-kind': entry.kind, 'data-term': entry.term }, [trHead(tr), body]));
+    trAsk();
+    announce(entry.kind === 'rev' ? 'Type the term.' : `Type the definition of ${termOf(entry.term).term}.`);
+  }
+  const trSetBody = (nodes, focusSel) => {
+    const tr = state.tr;
+    if (!tr || !tr.bodyEl) return;
+    leaveTrainerViewInsts();
+    window.scrollTo(0, 0);
+    tr.bodyEl.replaceChildren(...[].concat(nodes).filter(Boolean));
+    const f = focusSel && tr.bodyEl.querySelector(focusSel);
+    if (f) { try { f.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+  };
+  /** Changing phase inside a card: stop the diagram that was playing (the header stays). */
+  function leaveTrainerViewInsts() {
+    const v = state.tview;
+    if (!v) return;
+    if (v.timer) { clearTimeout(v.timer); v.timer = null; }
+    (v.insts || []).forEach((i) => { try { i.destroy(); } catch (e) { console.error('destroy failed', e); } });
+    v.insts = [];
+  }
+  const mkTa = (kind, ph) => {
+    const el = kind === 'rev'
+      ? h('input', { type: 'text', class: 'tr-input is-line', id: 'trTa', 'aria-label': 'The term', enterkeyhint: 'done' })
+      : h('textarea', { class: 'tr-input', id: 'trTa', rows: '3', maxlength: '600', 'aria-label': 'The definition' });
+    el.setAttribute('autocomplete', 'off');
+    el.setAttribute('spellcheck', 'false'); el.setAttribute('autocorrect', 'off'); el.setAttribute('autocapitalize', 'off');
+    el.setAttribute('autofocus', ''); el.setAttribute('data-focus', ''); el.setAttribute('placeholder', ph);
+    return el;
+  };
+  const PH_DEF = "Type it the way you remember it. Spelling doesn't count.";
+  const PH_TERM = "Type the term. Spelling doesn't count.";
+
+  /** The typing step shared by: from memory, the copy step, and "type it once more". o: { mode, submit(text, skip), hintable } */
+  function typingBlock(entry, o) {
+    const rev = entry.kind === 'rev';
+    const ta = mkTa(rev ? 'rev' : 'def', rev ? PH_TERM : PH_DEF);
+    const check = h('button', { class: 'btn btn-primary tr-check', type: 'button', disabled: true, 'data-tr-check': '' }, ['Check', h('span', { class: 'kbd', 'aria-hidden': 'true' }, 'Enter')]);
+    const idk = o.idk === false ? null : h('button', { class: 'btn btn-quiet btn-small', type: 'button', 'data-tr-idk': '' }, "I don't know yet");
+    const hintBox = h('div', { class: 'tr-hints', 'aria-live': 'polite' });
+    const cur = state.tr.cur;
+    let hintBtn = null;
+    const maxHints = rev ? 1 : 2;
+    const showHint = () => {
+      if (cur.hints >= maxHints) return;
+      cur.hints++; cur.hinted = true;
+      const t = termOf(entry.term), m = memOf(entry.term);
+      if (rev) hintBox.appendChild(h('p', { class: 'hint-box', 'data-hint': '1' }, [h('strong', null, 'Hint: '), skeletonOf(t.term)]));
+      else if (cur.hints === 1) hintBox.appendChild(h('p', { class: 'hint-box', 'data-hint': '1' }, [h('strong', null, 'Hint: '), m.mnemonic ? mnemonicNode(m.mnemonic) : skeletonOf(t.def)]));
+      else hintBox.appendChild(h('p', { class: 'hint-box tr-skel', 'data-hint': '2' }, [h('strong', null, 'Hint: '), h('span', { class: 'tr-skel-text' }, skeletonOf(t.def))]));
+      if (cur.hints >= maxHints) hintBtn.hidden = true; else hintBtn.textContent = 'Another hint';
+      try { ta.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+    };
+    if (o.hintable) hintBtn = h('button', { class: 'btn btn-quiet btn-small', type: 'button', 'data-tr-hint': '', onclick: showHint }, 'Hint');
+    let done = false;
+    const submit = (skip) => {
+      if (done) return;
+      const text = ta.value;
+      if (!skip && !text.trim()) return;
+      done = true;
+      ta.disabled = true; check.disabled = true; if (idk) idk.disabled = true; if (hintBtn) hintBtn.disabled = true;
+      o.submit(skip ? '' : text, !!skip);
+    };
+    ta.addEventListener('input', () => { check.disabled = !ta.value.trim(); });
+    ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(false); } });
+    check.addEventListener('click', () => submit(false));
+    if (idk) idk.addEventListener('click', () => submit(true));
+    return h('div', { class: 'tr-type' }, [
+      ta,
+      hintBox,
+      h('div', { class: 'actionbar tr-actions' }, [hintBtn, idk, h('span', { class: 'spacer' }), check]),
+      h('p', { class: 'keyhint tr-keyhint' }, rev ? 'Enter checks.' : 'Enter checks. Shift+Enter starts a new line.'),
+    ]);
+  }
+
+  const gradeFor = (entry, text) => (entry.kind === 'rev' ? DG.gradeTerm(entry.term, text) : DG.gradeDefinition(entry.term, text));
+
+  /* phase: ask (from memory) */
+  function trAsk() {
+    const tr = state.tr, cur = tr.cur, entry = cur.entry, t = termOf(entry.term);
+    const rev = entry.kind === 'rev';
+    const recall = tr.mode === 'recall';
+    cur.phase = 'ask';
+    const prompt = rev
+      ? [h('p', { class: 'eyebrow' }, 'Which term is this?'), h('h2', { class: 'tr-bigdef prompt', id: 'qprompt', tabindex: '-1' }, t.def)]
+      : [h('p', { class: 'eyebrow' }, 'Type the definition'), h('h2', { class: 'tr-term prompt', id: 'qprompt', tabindex: '-1' }, t.term)];
+    trSetBody(h('div', { class: 'tr-card' }, [
+      h('div', { class: 'chips' }, [h('span', { class: 'chip' }, recall ? 'From memory' : rev ? 'The term' : 'The definition'), entry.retry ? h('span', { class: 'chip retry' }, "Let's try that one again") : null]),
+      prompt,
+      typingBlock(entry, { hintable: !recall, submit: (text, skip) => trSubmitAsk(text, skip) }),
+    ]), '#trTa');
+  }
+  function trSubmitAsk(text, skip) {
+    const tr = state.tr, cur = tr.cur, entry = cur.entry;
+    const res = skip ? { verdict: 'wrong', found: [], missing: [], missingWords: [], tip: '' } : gradeFor(entry, text);
+    cur.text = text; cur.res = res; cur.skipped = skip;
+    const score = res.verdict === 'correct' ? 1 : res.verdict === 'almost' ? 0.5 : 0;
+    // a hinted try is a copy-level try: it is not kept as "from memory"
+    if (!cur.hinted) { Trainer.record(entry.kind, entry.term, score); tr.results.push({ term: entry.term, kind: entry.kind, score }); }
+    else tr.results.push({ term: entry.term, kind: entry.kind, score: 0, hinted: true });
+    if (tr.mode === 'recall') return trRecallResult();
+    if (res.verdict === 'correct') {
+      if (cur.hinted) trRequeue(tr, entry);
+      return trCorrect();
+    }
+    if (res.verdict === 'almost') { trRequeue(tr, entry); return trAlmost(); }
+    trRequeue(tr, entry);
+    return trTeach();
+  }
+
+  /** Next: a key held down (Enter repeating after "Check") must not skip the note, so a keyboard press right after it appears is ignored. */
+  const nextBtn = (label) => {
+    const born = Date.now();
+    return h('button', { class: 'btn btn-primary tr-next', type: 'button', 'data-tr-next': '', onclick: (e) => { if (e.detail === 0 && Date.now() - born < 450) return; trAdvance(false); } }, [label || (state.tr && Trainer.allLearned() ? 'Finish' : 'Next'), h('span', { class: 'kbd', 'aria-hidden': 'true' }, 'Enter')]);
+  };
+
+  /* phase: correct */
+  function trCorrect() {
+    const tr = state.tr, cur = tr.cur, entry = cur.entry, res = cur.res, t = termOf(entry.term);
+    cur.phase = 'correct';
+    const st = Trainer.status(entry.term);
+    const justLearned = st.learned && !cur.before.learned;
+    const note = h('div', { class: 'note note--good tr-note', 'data-note': 'correct', tabindex: '-1' }, [
+      h('h3', { class: 'note-head' }, [icon('check'), cur.hinted ? "That's right, with a hint." : "You've got it."]),
+      entry.kind === 'rev' ? h('p', { class: 'tt-typed', 'data-typed': '' }, h('span', { class: 'tt-got' }, h('u', null, DG.normText(cur.text).trim()))) : typedNode(cur.text, res.found),
+      res.tip ? h('p', { class: 'note-small' }, res.tip) : null,
+      exactBlock(entry.term),
+      ...memoryLines(entry.term, true),
+      cur.hinted ? h('p', { class: 'note-small' }, 'This one comes back in a few cards, with no hint.') : null,
+      justLearned ? h('p', { class: 'tr-learned', 'data-just-learned': entry.term }, `${t.term} is learned.`) : null,
+    ]);
+    trSetBody(h('div', { class: 'tr-card' }, [note, h('div', { class: 'actionbar tr-actions' }, [h('span', { class: 'spacer' }), nextBtn()])]), '[data-tr-next]');
+    state.tview.onEnter = () => trAdvance(false);
+    announce("You've got it.");
+    if (cur.before && !cur.before.learned) refreshTrainerHead();
+  }
+  function refreshTrainerHead() {
+    const tr = state.tr, old = document.querySelector('.tr-head');
+    if (tr && old) old.replaceWith(trHead(tr));
+  }
+
+  /* phase: almost */
+  function trAlmost() {
+    const tr = state.tr, cur = tr.cur, entry = cur.entry, res = cur.res;
+    cur.phase = 'almost';
+    const again = h('button', { class: 'btn btn-primary tr-again', type: 'button', 'data-tr-again': '', onclick: () => trCopy('again') }, 'Type it once more');
+    const note = h('div', { class: 'note note--part tr-note', 'data-note': 'almost', tabindex: '-1' }, [
+      h('h3', { class: 'note-head' }, 'Almost.'),
+      h('p', { class: 'note-small' }, 'What you typed:'),
+      typedNode(cur.text, res.found),
+      res.tip ? h('p', null, res.tip) : null,
+      h('div', { class: 'note-block exact-def tr-exact' }, [
+        h('span', { class: 'note-label' }, "The teacher's exact words" + (res.missing.length ? ' (the missing ' + (res.missing.length > 1 ? 'words are' : 'word is') + ' lit up)' : '')),
+        h('strong', { class: 'def-hl tr-big' }, [termOf(entry.term).term + ': ', defNode(entry.term, res.missing, 'def-miss')]),
+      ]),
+    ]);
+    trSetBody(h('div', { class: 'tr-card' }, [note, h('div', { class: 'actionbar tr-actions' }, [h('span', { class: 'spacer' }), again])]), '[data-tr-again]');
+    state.tview.onEnter = () => trCopy('again');
+    announce('Almost.');
+  }
+
+  /* phase: teach (wrong, or "I don't know yet") */
+  function teachPanel(termId, o) {
+    const t = termOf(termId), m = memOf(termId), mt = m.teach || {};
+    const view = state.tview;
+    const host = h('div', { class: 'diagram-host tr-diagram-host' });
+    const cap = h('p', { class: 'tr-caption', 'data-caption': '' }, mt.caption || '');
+    const replay = h('button', { class: 'btn btn-small', type: 'button', 'data-tr-replay': '', onclick: () => { leaveTrainerViewInsts(); mountTeachDiagram(host, termId, state.tview); } }, 'Watch again');
+    const node = h('div', { class: 'tr-teach' }, [
+      h('div', { class: 'tr-teach-text' }, [
+        h('p', { class: 'eyebrow' }, o.eyebrow),
+        h('h2', { class: 'tr-term' }, t.term),
+        h('p', { class: 'tr-bigdef', 'data-teach-def': '' }, h('strong', null, defNode(termId, null, 'def-key'))),
+        m.hook ? h('p', { class: 'tr-hook' }, m.hook) : null,
+        ...memoryLines(termId, false),
+        m.gesture ? h('p', { class: 'tr-gesture' }, [h('span', { class: 'note-label' }, 'Do this while you say it'), lowerFirst(m.gesture)]) : null,
+        m.picture ? h('p', { class: 'tr-picture' }, [h('span', { class: 'note-label' }, 'Picture it'), m.picture]) : null,
+        m.pair ? h('p', { class: 'tr-pair', 'data-pair': '' }, m.pair) : null,
+      ]),
+      h('figure', { class: 'tr-teach-figure' }, [cap, h('div', { class: 'qdiagram tr-diagram' }, host), replay]),
+    ]);
+    // mount after the node is in the page (diagrams measure themselves)
+    view.pending = () => mountTeachDiagram(host, termId, state.tview);
+    return node;
+  }
+  /** The copy / "once more" step: type it with the definition in view. Wrong tries stay here (gently) until he reaches correct or almost. */
+  function mountCopy(zone, kind) {
+    const entry = state.tr.cur.entry, rev = entry.kind === 'rev';
+    state.tr.cur.phase = kind;
+    const slot = h('div', { class: 'tr-copy-slot' });
+    const msg = h('p', { class: 'tr-copy-msg', role: 'status', 'data-copy-msg': '' });
+    const build = (keep) => {
+      const block = typingBlock(entry, {
+        hintable: false, idk: false,
+        submit: (text) => {
+          const res = gradeFor(entry, text);
+          if (res.verdict === 'wrong') { msg.textContent = 'Not quite. Look at the lit-up words and try again.'; build(text); return; }
+          msg.textContent = '';
+          trCopyDone(res, text);
+        },
+      });
+      slot.replaceChildren(block);
+      const ta = block.querySelector('#trTa');
+      if (keep) { ta.value = keep; ta.dispatchEvent(new Event('input')); }
+      try { ta.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+    };
+    zone.replaceChildren(h('p', { class: 'tr-copy-title' }, rev ? 'Type the term while you look at it.' : kind === 'again' ? 'Type it once more, with the words in view.' : 'Type it while you look at it.'), slot, msg);
+    build();
+    try { zone.scrollIntoView({ block: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' }); } catch (e) { /* ignore */ }
+  }
+  function trTeach() {
+    const tr = state.tr, cur = tr.cur, entry = cur.entry;
+    cur.phase = 'teach';
+    const yours = cur.text && cur.text.trim() ? h('div', { class: 'tr-yours' }, [h('span', { class: 'note-label' }, 'You typed'), h('span', { class: 'tr-yours-text', 'data-typed': '' }, cur.text.trim()), cur.res.tip ? h('span', { class: 'note-small tr-tip' }, ' ' + cur.res.tip) : null]) : null;
+    const zone = h('div', { class: 'tr-copy', 'data-copy-zone': '' });
+    const startCopy = h('button', { class: 'btn btn-primary tr-copy-btn', type: 'button', 'data-tr-copy': '' }, 'Now type it while you look at it');
+    const open = () => { if (cur.phase === 'copy') return; startCopy.hidden = true; mountCopy(zone, 'copy'); state.tview.onEnter = null; };
+    startCopy.addEventListener('click', open);
+    const panel = teachPanel(entry.term, { eyebrow: cur.skipped ? "That's okay. Here it is." : 'Not yet. Here it is.' });
+    trSetBody(h('div', { class: 'tr-card tr-teach-card', 'data-note': 'teach' }, [yours, panel, h('div', { class: 'actionbar tr-actions' }, [h('span', { class: 'spacer' }), startCopy]), zone]), '[data-tr-copy]');
+    const v = state.tview;
+    if (v.pending) { const f = v.pending; v.pending = null; f(); }
+    v.onEnter = open;
+    announce('Here it is. Look at the picture, then type it while you look.');
+  }
+  /** Almost: the definition again with the missing words lit, and a typing box right under it. */
+  function trCopy(kind) {
+    const tr = state.tr, cur = tr.cur, entry = cur.entry, t = termOf(entry.term);
+    cur.phase = kind;
+    const zone = h('div', { class: 'tr-copy', 'data-copy-zone': '' });
+    const panel = h('div', { class: 'tr-once' }, [
+      h('p', { class: 'eyebrow' }, 'Type it once more'), h('h2', { class: 'tr-term' }, t.term),
+      h('p', { class: 'tr-bigdef', 'data-teach-def': '' }, h('strong', null, defNode(entry.term, cur.res.missing, 'def-miss'))),
+    ]);
+    trSetBody(h('div', { class: 'tr-card tr-teach-card', 'data-note': kind }, [panel, zone]), null);
+    mountCopy(zone, kind);
+    state.tview.onEnter = null;
+  }
+  function trCopyDone(res, text) {
+    const tr = state.tr, cur = tr.cur, entry = cur.entry;
+    cur.phase = 'copied';
+    const note = h('div', { class: 'note note--good tr-note', 'data-note': 'copied', tabindex: '-1' }, [
+      h('h3', { class: 'note-head' }, [icon('check'), res.verdict === 'almost' ? 'Close enough to move on.' : 'That is it.']),
+      entry.kind === 'rev' ? null : typedNode(text, res.found),
+      exactBlock(entry.term),
+      h('p', { class: 'note-small' }, "This one comes back in a few cards. Then you type it from memory."),
+    ]);
+    trSetBody(h('div', { class: 'tr-card' }, [note, h('div', { class: 'actionbar tr-actions' }, [h('span', { class: 'spacer' }), nextBtn()])]), '[data-tr-next]');
+    state.tview.onEnter = () => trAdvance(false);
+  }
+
+  /* the one-shot version used by "Today's session" step 1: no teaching, just the verdict and the exact words */
+  function trRecallResult() {
+    const tr = state.tr, cur = tr.cur, entry = cur.entry, res = cur.res;
+    cur.phase = 'recall-result';
+    const v = res.verdict;
+    const last = tr.idx >= tr.queue.length - 1;
+    const note = h('div', { class: 'note note--' + (v === 'correct' ? 'good' : v === 'almost' ? 'part' : 'bad') + ' tr-note', 'data-note': v, tabindex: '-1' }, [
+      h('h3', { class: 'note-head' }, [v === 'correct' ? icon('check') : null, v === 'correct' ? "You've got it." : v === 'almost' ? 'Almost.' : cur.skipped ? "That's okay." : 'Not yet.']),
+      cur.text && cur.text.trim() ? typedNode(cur.text, res.found) : null,
+      v !== 'correct' && res.tip ? h('p', null, res.tip) : null,
+      v === 'correct' ? exactBlock(entry.term) : h('div', { class: 'note-block exact-def tr-exact' }, [h('span', { class: 'note-label' }, "The teacher's exact words"), h('strong', { class: 'def-hl tr-big' }, [termOf(entry.term).term + ': ', defNode(entry.term, v === 'almost' ? res.missing : null, v === 'almost' ? 'def-miss' : 'def-key')])]),
+    ]);
+    trSetBody(h('div', { class: 'tr-card' }, [note, h('div', { class: 'actionbar tr-actions' }, [h('span', { class: 'spacer' }), nextBtn(last ? 'Continue' : 'Next')])]), '[data-tr-next]');
+    state.tview.onEnter = () => trAdvance(false);
+  }
+
+  /* ---- all 7 learned ---- */
+  function showTrainerEnd() {
+    leaveQuestion();
+    leaveTrainerView();
+    state.screen = 'trainer-end';
+    const tr = state.tr;
+    const L = Trainer.ids().length;
+    const inSession = !!(tr && tr.session);
+    const rows = Defs.list().map((t) => h('li', { class: 'study-row is-cold', 'data-term': t.id }, [
+      h('div', { class: 'study-top' }, [h('span', { class: 'study-term' }, t.term), h('span', { class: 'dstate is-cold' }, [h('span', { class: 'dmark', 'aria-hidden': 'true', html: ICON.check }), 'learned'])]),
+      h('p', { class: 'study-def' }, h('span', { class: 'def-hl' }, t.def)),
+      memOf(t.id).mnemonic ? h('p', { class: 'tr-mn is-small' }, [h('span', { class: 'note-label' }, 'Memory trick'), mnemonicNode(memOf(t.id).mnemonic)]) : null,
+    ]));
+    const finish = () => {
+      if (tr && tr.session) { state.tr = null; sessionRoundEnd({ session: tr.session, results: tr.results, mode: 'type' }); }
+      else if (tr && tr.fromDone) { state.tr = null; showSessionDone(); }
+      else showHome();
+    };
+    const screen = h('div', { class: 'endscreen is-drill tr-end', 'data-screen': 'trainer-end' }, [
+      h('div', { class: 'endtop' }, [
+        h('p', { class: 'eyebrow' }, 'Type the 7 definitions'),
+        h('h1', { class: 'bigscore bigscore--text', tabindex: '-1', 'data-focus': '' }, [h('span', null, `All ${L} learned`)]),
+        h('p', null, 'You typed every one from memory. Read the card out loud one more time, then you are set.'),
+        h('div', { class: 'end-actions' }, [
+          h('button', { class: 'btn btn-primary', type: 'button', 'data-tr-done': '', onclick: finish }, inSession ? 'Continue' : 'Home'),
+          inSession ? null : h('button', { class: 'btn', type: 'button', onclick: () => { state.tr = null; showMemoryTricks(); } }, 'Memory tricks'),
+        ]),
+      ]),
+      h('div', { class: 'endgrid' }, [h('section', { class: 'study', 'aria-labelledby': 'trEndH' }, [h('h2', { class: 'section-title', id: 'trEndH' }, 'Your study card'), h('ol', { class: 'study-list' }, rows)])]),
+    ]);
+    mountScreen(screen);
+    announce(`All ${L} definitions learned.`);
+  }
+
+  /* ---- Memory tricks: all 7, each with a small diagram that plays only while it is on screen ---- */
+  function showMemoryTricks() {
+    leaveQuestion();
+    leaveTrainerView();
+    closeDialog();
+    state.screen = 'memory';
+    state.round = null; state.tr = null;
+    const view = state.tview = { insts: [], timer: null, io: null };
+    const hosts = [];
+    const cards = Defs.list().map((t) => {
+      const m = memOf(t.id);
+      const host = h('div', { class: 'diagram-host mt-host' });
+      hosts.push({ host, id: t.id, inst: null });
+      return h('li', { class: 'mt-card', 'data-term': t.id }, [
+        h('div', { class: 'mt-text' }, [
+          h('h2', { class: 'mt-term' }, t.term),
+          h('p', { class: 'mt-def' }, h('strong', { class: 'def-hl' }, t.def)),
+          m.hook ? h('p', { class: 'tr-hook' }, m.hook) : null,
+          ...memoryLines(t.id, false),
+          m.gesture ? h('p', { class: 'tr-gesture' }, [h('span', { class: 'note-label' }, 'Do this'), lowerFirst(m.gesture)]) : null,
+          m.picture ? h('p', { class: 'tr-picture' }, [h('span', { class: 'note-label' }, 'Picture it'), m.picture]) : null,
+          m.pair ? h('p', { class: 'tr-pair' }, m.pair) : null,
+        ]),
+        h('figure', { class: 'mt-fig' }, [h('div', { class: 'qdiagram' }, host), h('p', { class: 'tr-caption' }, (m.teach && m.teach.caption) || '')]),
+      ]);
+    });
+    const screen = h('div', { class: 'qscreen mt-screen' }, [
+      h('div', { class: 'qhead' }, [h('button', { class: 'btn btn-quiet btn-small', type: 'button', 'data-mt-back': '', onclick: () => { leaveTrainerView(); showHome(); } }, 'Back'), h('h1', { class: 'section-title mt-title', tabindex: '-1', 'data-focus': '' }, 'Memory tricks'), syncNode()]),
+      h('p', { class: 'quiet' }, 'A short trick and a picture for each of the 7. Say the exact words out loud while you do the move.'),
+      h('ul', { class: 'mt-list' }, cards),
+    ]);
+    mountScreen(screen);
+    const mountOne = (o) => {
+      if (o.inst) return;
+      const t = memOf(o.id).teach;
+      if (!t) return;
+      const useBall = !!(t.baseball && window.Diagrams && window.Diagrams.has && window.Diagrams.has('baseball'));
+      const cfg = useBall ? t.baseball : t;
+      o.inst = window.Diagrams.mount(o.host, Object.assign({}, cfg.diagram, { interactive: false }), {});
+      view.insts.push(o.inst);
+      o.host.setAttribute('data-diagram', useBall ? 'baseball' : cfg.diagram.type);
+      if (cfg.then) o.timer = setTimeout(() => { o.timer = null; try { if (o.inst) o.inst.setParams(cfg.then.params); } catch (e) { console.error('reveal failed', e); } }, reduceMotion() ? 0 : cfg.then.afterMs);
+    };
+    const dropOne = (o) => {
+      if (o.timer) { clearTimeout(o.timer); o.timer = null; }
+      if (!o.inst) return;
+      try { o.inst.destroy(); } catch (e) { console.error('destroy failed', e); }
+      const at = view.insts.indexOf(o.inst);
+      if (at >= 0) view.insts.splice(at, 1);
+      o.inst = null;
+    };
+    if (typeof IntersectionObserver === 'function') {
+      view.io = new IntersectionObserver((entries) => {
+        entries.forEach((en) => { const o = hosts.find((x) => x.host === en.target); if (!o) return; if (en.isIntersecting) mountOne(o); else dropOne(o); });
+      }, { rootMargin: '80px', threshold: 0.05 });
+      hosts.forEach((o) => view.io.observe(o.host));
+    } else hosts.forEach(mountOne);
+    view.hosts = hosts;
+  }
+
+  /* =====================================================================
    * Home
    * ===================================================================== */
-  function termChip(t, st) {
-    const label = `${t.term}: ${Defs.STATE_TEXT[st.state]}`;
+  function termChip(t, st, texts) {
+    const label = `${t.term}: ${(texts || Defs.STATE_TEXT)[st.state]}`;
     return h('li', { class: 'dchip is-' + st.state, title: label, 'aria-label': label }, [
       h('span', { class: 'dmark', 'aria-hidden': 'true', html: st.known ? ICON.check : '' }),
       h('span', { 'aria-hidden': 'true' }, t.term),
@@ -1515,6 +2129,23 @@
       ]),
       h('ul', { class: 'defs-chips', 'aria-label': 'The terms and how well you know each' }, L.map((t) => termChip(t, st[t.id]))),
       h('p', { class: 'defs-legend', 'aria-hidden': 'true' }, 'Empty dashed: not yet. Half: getting there. Check: known cold.'),
+    ]);
+  }
+
+  /** "Type the 7 definitions": the first card on the home screen. How many are learned, one chip per term, and the big button. */
+  function trainerCard() {
+    if (!DG || !Defs.has()) return null;
+    const L = Defs.list(), st = Trainer.all(), n = Trainer.learnedCount(st);
+    return h('section', { class: 'trainer-card' + (n === L.length ? ' is-done' : ''), 'aria-labelledby': 'trainerH', 'data-trainer-state': n === L.length ? 'done' : n ? 'going' : 'new' }, [
+      h('div', { class: 'tc-head' }, [
+        h('h2', { class: 'tc-title', id: 'trainerH' }, 'Type the 7 definitions'),
+        h('p', { class: 'tc-count', 'data-trainer-count': String(n) }, [h('strong', null, `${n} of ${L.length}`), ' learned']),
+      ]),
+      h('ul', { class: 'defs-chips tc-chips', 'aria-label': 'The terms and how well you know each' }, L.map((t) => termChip(t, { state: st[t.id].state, known: st[t.id].learned }, Trainer.STATE_TEXT))),
+      h('div', { class: 'tc-actions' }, [
+        h('button', { class: 'btn btn-primary tc-go', type: 'button', 'data-trainer-go': '', onclick: () => startTrainer() }, n === L.length ? 'Type them again' : 'Start typing'),
+        h('button', { class: 'btn btn-small tc-tricks', type: 'button', 'data-memory-tricks': '', onclick: showMemoryTricks }, 'Memory tricks'),
+      ]),
     ]);
   }
 
@@ -1565,6 +2196,7 @@
     closeDialog();
     state.screen = 'home';
     state.round = null;
+    state.tr = null;
     const missedN = Store.missedIds().length;
     const reviewN = sheetQuestions('review-').length;
     const missionN = sheetQuestions('mission-').length;
@@ -1621,7 +2253,7 @@
       mountScreen(h('div', { class: 'home' }, h('p', { class: 'problem' }, 'The question bank did not load. Reload the page to try again.')));
       return;
     }
-    mountScreen(h('div', { class: 'home' }, [top, sessionCard(), hero, side, foot]));
+    mountScreen(h('div', { class: 'home' }, [top, trainerCard(), sessionCard(), hero, side, foot]));
     QS.refresh(); // pick up what other devices did (throttled; re-draws this screen only if something changed)
   }
   function askReset() {
@@ -1724,6 +2356,7 @@
   }
 
   function leaveQuestion() {
+    leaveTrainerView();
     const ctx = state.ctx;
     if (!ctx) return;
     ctx.disposed = true;
@@ -1846,6 +2479,11 @@
   document.addEventListener('keydown', (e) => {
     if (e.defaultPrevented) return;
     if (state.dialog) { if (e.key === 'Escape') { e.preventDefault(); closeDialog(); } return; }
+    if (state.screen === 'trainer' && state.tview && state.tview.onEnter && e.key === 'Enter' && !e.repeat && !isTyping(e.target) && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      const tag = e.target && e.target.tagName;
+      if (tag !== 'BUTTON' && tag !== 'A') { e.preventDefault(); state.tview.onEnter(); }
+      return;
+    }
     const ctx = state.ctx;
     if (state.screen !== 'question' || !ctx) return;
     if (e.key === 'Escape') { e.preventDefault(); askLeave(); return; }
@@ -2615,6 +3253,7 @@
     startIds(ids) { startRound('ids', { ids }); },
     Defs, Focus, startDrill() { startRound('defs'); }, startFocus() { startRound('focus'); }, openWatch,
     Session, showInterstitial, showSessionDone, SESS_STEPS,
+    Trainer, DefGrade: DG, startTrainer, showMemoryTricks, showTrainerCard,
     bank: () => BANK, evalGoal, parseNum, validateAI, buildGradePrompt,
     isAiOff: () => aiOff, whenSampleReady: () => samplePromise,
   };
