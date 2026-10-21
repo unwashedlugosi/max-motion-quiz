@@ -8,7 +8,7 @@
   /* =====================================================================
    * Config
    * ===================================================================== */
-  const TEST_DATE = '2026-10-21';
+  const TEST_DATE = '2026-10-22';
   const QUIZ_LEN = 10;
   const RETRY_GAP = 3;          // a missed question comes back this many positions later
   const SEPARATION = 4;         // two right answers count as "separated" if >= this many answers apart
@@ -91,10 +91,10 @@
   }
   function countdownHtml() {
     const n = daysToTest();
-    if (n > 1) return `Test on <b>Wednesday</b>: ${n} days to go`;
-    if (n === 1) return 'Test on <b>Wednesday</b>: tomorrow';
+    if (n > 1) return `Test on <b>Thursday</b>: ${n} days to go`;
+    if (n === 1) return 'Test on <b>Thursday</b>: tomorrow';
     if (n === 0) return 'Test day is <b>today</b>';
-    return 'The test was on <b>Wednesday</b>';
+    return 'The test was on <b>Thursday</b>';
   }
 
   /* =====================================================================
