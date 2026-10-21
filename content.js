@@ -36,6 +36,28 @@
     { id: 'show-work',         label: 'Show your work',           demo: 'focus-show-work-02',         watch: 'Watch the distance and the time, then the speed.' }
   ];
 
+  /* "Teach it back": five say-it-out-loud cards in the guided session. The student says the answer, taps "I said it" to see
+     the model answer, then marks "Got it" or "Not yet". "Not yet" lines up `more` related questions right after the card
+     (each entry picks questions by focus concept, by topic, or from the key definitions).
+     modelDefs: show the 7 official definitions verbatim as the model answer. */
+  window.TEACH_CARDS = [
+    { id: 'a', title: 'Constant velocity', more: [{ focus: 'turning-velocity' }],
+      prompt: 'A ball bounces back off a wall at the same speed, 25 ft/s. Did it have a constant velocity? Why?',
+      model: 'No. Its direction changed, so its velocity changed, even though the speed stayed 25 ft/s.' },
+    { id: 'b', title: 'Speed or velocity', more: [{ focus: 'speed-or-velocity' }],
+      prompt: 'Is "12 cm per second" a speed or a velocity? Why?',
+      model: 'Speed. No direction is given.' },
+    { id: 'c', title: 'Rate of motion', more: [{ focus: 'rate-of-motion' }, { focus: 'average-speed' }],
+      prompt: 'What is the rate of change of motion? And total distance \u00f7 total time gives what?',
+      model: 'Speed. Average speed.' },
+    { id: 'd', title: 'A flat line', more: [{ topic: 'graphs' }],
+      prompt: 'A distance-time graph has a flat line at 40 m. What is the object doing?',
+      model: 'Stopped, 40 m away from the start.' },
+    { id: 'e', title: 'The 7 definitions', more: [{ defs: true }], modelDefs: true,
+      prompt: 'Say all 7 definitions in your teacher\'s words.',
+      model: '' }
+  ];
+
   var Q = [];
 
   /* Robot hallway data from the Motion Mission handout: [time (s), distance (m)] */

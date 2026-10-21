@@ -22,6 +22,9 @@
   const FOCUS_IN_QUIZ = 2;      // every regular quiz carries this many focus questions (from concepts not fixed yet)
   const FOCUS_NEEDS = 2;        // "fixed" needs right answers on at least this many different questions
   const FOCUS_EXTRA = 2;        // a focus round never grows by more than this many questions beyond FOCUS_LEN to fit retries
+  const SESSION_FOCUS_ROUNDS = 2, SESSION_DEFS_ROUNDS = 2;   // "Today's session": rounds a step may take before moving on regardless
+  const SESSION_FOCUS_PLAN = 28;                            // a session's focus round has room for every open concept's "show me why" block, so two rounds are enough to fix all six
+  const GRAPHS_LEN = 10, GRAPHS_PASS = 8, MISSION_LEN = 10;  // graphs check: questions per round, first-try pass mark, Motion Mission warm-up size
   const FOCUS_PLAN_MAX = 18;    // the "show me why" chains + spot-the-mistake questions lined up at the start of a focus round (the round grows to fit them, up to this)
 
   const root = document.getElementById('app');
@@ -186,6 +189,9 @@
       } else if (ev.k === 'r') { // a round was started
         data.rounds++;
         changes.rounds = data.rounds;
+      } else if (ev.k === 's') { // today's guided session: the whole small object, newest write wins
+        const cur = data.session;
+        if (!cur || (cur.updatedAt || 0) <= ev.t) { data.session = JSON.parse(JSON.stringify(ev.session)); data.session.updatedAt = ev.t; changes.session = data.session; }
       }
       return { info, changes };
     }
@@ -231,7 +237,10 @@
       return Object.keys(missed).filter((id) => byId[id]).sort((a, b) => (missed[a].since || 0) - (missed[b].since || 0));
     }
     const noteRound = () => { run({ k: 'r', t: Date.now() }); };
-    return { load, reset, get, isMissed, answer, amend, qMastery, topicMastery, missedIds, noteRound, isPersistent: () => QS.isPersistent(), _data: D };
+    const today = () => ymd(Date.now());
+    const session = () => D().session || null;
+    const putSession = (obj) => { run({ k: 's', session: obj, t: Date.now() }); };
+    return { load, reset, get, isMissed, answer, amend, qMastery, topicMastery, missedIds, noteRound, today, session, putSession, isPersistent: () => QS.isPersistent(), _data: D };
   })();
 
   /* =====================================================================
@@ -273,10 +282,10 @@
       return list().filter((d) => t.indexOf(d.def) >= 0);
     }
     /** One weighted pick among the definition questions.
-     *  o: { states, exclude:Set(ids), avoid:Set(term ids), lastFmt, termCount:{term:n} } */
+     *  o: { states, exclude:Set(ids), avoid:Set(term ids), only:Set(term ids), prio:Set(term ids), lastFmt, termCount:{term:n} } */
     function pick(o) {
       const states = o.states || all();
-      let cands = BANK.filter((q) => q.term && states[q.term] && !(o.exclude && o.exclude.has(q.id)) && !(o.avoid && o.avoid.has(q.term)));
+      let cands = BANK.filter((q) => q.term && states[q.term] && !(o.exclude && o.exclude.has(q.id)) && !(o.avoid && o.avoid.has(q.term)) && !(o.only && !o.only.has(q.term)));
       // terms not yet known cold come first: known-cold terms are only used when nothing else is left to ask
       const fresh = cands.filter((q) => !states[q.term].known);
       if (fresh.length) cands = fresh;
@@ -286,6 +295,7 @@
         let w = st.known ? 1 : st.state === 'getting' ? 2.6 : 3;
         w *= st.passed.has(q.fmt) ? 0.35 : 1.8;                                               // formats he has not passed come first
         if (!Store.get(q.id)) w *= 1.25;
+        if (o.prio && o.prio.has(q.term)) w *= 2.2;                                            // terms missed earlier come up more
         if (o.lastFmt && q.fmt === o.lastFmt) w *= 0.35;                                       // mix the formats
         if (q.fmt === 'short') w *= 1.15;
         w *= Math.pow(0.6, (o.termCount && o.termCount[q.term]) || 0);
@@ -753,7 +763,7 @@
   function askLeave() {
     openDialog({
       title: 'Leave this round?',
-      body: 'Your answers so far are saved.',
+      body: state.round && state.round.session ? 'Your answers so far are saved. When you come back, this step starts again from the first question.' : 'Your answers so far are saved.',
       focusIndex: 0,
       actions: [{ label: 'Keep going', primary: true }, { label: 'Leave', onClick: () => showHome() }],
     });
@@ -804,17 +814,17 @@
     }
     if (mode === 'topic') return pickWeighted(BANK.filter((q) => q.topic === opts.topic), QUIZ_LEN, false).map((q) => q.id);
     if (mode === 'review') return sheetQuestions('review-').map((q) => q.id);
-    if (mode === 'mission') return sheetQuestions('mission-').map((q) => q.id);
+    if (mode === 'mission') return opts && opts.ids ? opts.ids.filter((id) => byId[id]) : sheetQuestions('mission-').map((q) => q.id);
     if (mode === 'fix') return Store.missedIds().slice(0, FIX_MAX);
     if (mode === 'ids') return (opts.ids || []).filter((id) => byId[id]);
     return [];
   }
-  const modeLabel = (mode, opts) => ({ quiz: 'Mixed quiz', defs: 'Key definitions', review: 'Review sheet', mission: 'Motion Mission', fix: 'Fix my mistakes', focus: "Tonight's focus" }[mode] || (mode === 'topic' ? topicName(opts.topic) : 'Practice'));
+  const modeLabel = (mode, opts) => ({ quiz: 'Mixed quiz', defs: 'Key definitions', review: 'Review sheet', mission: 'Motion Mission', fix: 'Fix my mistakes', focus: "Tonight's focus", recall: 'Definitions from memory', teach: 'Teach it back' }[mode] || (mode === 'topic' ? topicName(opts.topic) : 'Practice'));
 
   /* ---- Planned rounds: the Key definitions drill (keyed by term) and Tonight's focus (keyed by concept).
    * A few questions are lined up at a time, using what he knows now; a miss comes back 3 later. ---- */
   const planStates = (round) => (round.focusRound ? Focus.all() : Defs.all());
-  const planPick = (round, o) => (round.focusRound ? Focus.pick(o) : Defs.pick(o));
+  const planPick = (round, o) => (round.focusRound ? Focus.pick(o) : Defs.pick(round.prio ? Object.assign({ prio: round.prio }, o) : o));
   const planKey = (round, q) => (q ? (round.focusRound ? q.focus : q.term) : undefined);
   const planFmt = (round, q) => (q ? (round.focusRound ? q.type : q.fmt) : null);
   const keyOfEntry = (round, e) => (e && byId[e.id] ? planKey(round, byId[e.id]) : undefined);
@@ -901,6 +911,18 @@
       if (!Defs.has()) { state.homeNote = 'There are no questions for that yet.'; showHome(); return; }
       Store.noteRound();
       state.round = { mode, opts, label: modeLabel(mode, opts), queue: [], idx: 0, results: [], total: DRILL_LEN, retryOK: true, drill: true, finishEarly: false };
+      tagRound(state.round, opts);
+      if (opts.prio && opts.prio.length) {
+        // terms missed earlier open the round: one question each (not known cold yet), different formats where possible
+        state.round.prio = new Set(opts.prio);
+        const states = Defs.all(), used = new Set();
+        let lastFmt = null;
+        opts.prio.forEach((t) => {
+          if (!states[t] || states[t].known) return;
+          const q = Defs.pick({ states, only: new Set([t]), exclude: used, lastFmt });
+          if (q) { state.round.queue.push({ id: q.id }); used.add(q.id); lastFmt = q.fmt; }
+        });
+      }
       fillDrill(state.round);
       showQuestion();
       return;
@@ -912,9 +934,10 @@
       const open = Focus.list().filter((c) => !st[c.id].fixed).map((c) => c.id);
       state.round = { mode, opts, label: modeLabel(mode, opts), queue: [], idx: 0, results: [], total: FOCUS_LEN, retryOK: true, drill: true, focusRound: true, finishEarly: false, startedFixed: open.length === 0 };
       // open with, for every concept that is not fixed yet: its "show me why" chain in order, then its "spot the mistake" question
-      state.round.queue = Focus.plan(open, st, FOCUS_PLAN_MAX);
-      state.round.total = Math.max(FOCUS_LEN, state.round.queue.length);
-      state.round.firstCap = Math.max(FOCUS_LEN + FOCUS_EXTRA, state.round.queue.length);
+      tagRound(state.round, opts);
+      state.round.queue = Focus.plan(open, st, opts.planMax || FOCUS_PLAN_MAX);   // a session round lines up every open concept's block (opts.planMax)
+      state.round.total = Math.max(FOCUS_LEN, state.round.queue.length + (opts.fillExtra || 0));
+      state.round.firstCap = Math.max(FOCUS_LEN + FOCUS_EXTRA, state.round.queue.length + (opts.fillExtra || 0));
       fillDrill(state.round);
       showQuestion();
       return;
@@ -927,17 +950,25 @@
     }
     Store.noteRound();
     state.round = {
-      mode, opts, label: modeLabel(mode, opts),
+      mode, opts, label: opts.label || modeLabel(mode, opts),
       queue: ids.map((id) => ({ id })), idx: 0, results: [], total: ids.length,
       retryOK: mode !== 'review' && mode !== 'mission',
     };
+    tagRound(state.round, opts);
     showQuestion();
+  }
+  /** A round started from "Today's session" (opts.session = { step }) or from its done screen (opts.fromDone) carries that along. */
+  function tagRound(round, opts) {
+    if (opts.session) round.session = opts.session;
+    if (opts.fromDone) round.fromDone = opts.fromDone;
+    if (opts.noHint) round.noHint = true;
   }
 
   /* =====================================================================
    * Screens: common
    * ===================================================================== */
   function mountScreen(node, focusSel) {
+    stopBreakTimer();
     root.replaceChildren(node);
     window.scrollTo(0, 0);
     const f = (focusSel && node.querySelector(focusSel)) || node.querySelector('[data-focus]');
@@ -991,6 +1022,475 @@
   });
 
   /* =====================================================================
+   * Today's session: a guided plan that runs itself. Steps run in order; each has a pass mark, and a step whose
+   * pass mark is already met is skipped and shown as already passed.
+   *   1 Definitions from memory   (7 recall shorts, one round, no retries; terms missed are drilled first in step 3)
+   *   2 Fix the review sheet misses (Tonight's focus; pass: all 6 fixed; at most 2 rounds)
+   *   3 Know the 7 definitions cold (Key definitions drill; pass: 7 of 7 known cold; at most 2 rounds)
+   *   4 Graphs check               (10 graphs questions; pass: 8 first try; else Motion Mission, then 10 more)
+   *   5 Teach it back              (5 say-it-out-loud cards; "Not yet" lines up 2 related questions)
+   *   6 Wrap up                    (done screen)
+   * Progress is one small object kept through the Store (QuizStore data.session, PUT whole), so it survives a reload
+   * and follows Max to every device. A new calendar day starts a fresh session; the old one is kept under `past`.
+   * Keys use letters ('s1'..'s5') because the database turns small integer keys into arrays.
+   * ===================================================================== */
+  const SESS_STEPS = [
+    { n: 1, name: 'Definitions from memory', why: 'Writing each definition from memory shows which ones you really know.', time: 'about 8 minutes' },
+    { n: 2, name: 'Fix the review sheet misses', why: 'These are the six things you missed on the review sheet, so they come first.', time: 'about 15 minutes' },
+    { n: 3, name: 'Know the 7 definitions cold', why: "Your teacher's exact words earn points, so we drill them until all seven stick.", time: 'about 12 minutes' },
+    { n: 4, name: 'Graphs check', why: 'Distance-time graphs are a big part of the test, so this checks that you can read them.', time: 'about 10 minutes' },
+    { n: 5, name: 'Teach it back', why: 'Saying an answer out loud shows you can explain it, not just pick it.', time: 'about 10 minutes' },
+    { n: 6, name: 'Wrap up', why: 'A last look at what you finished and what to do next.', time: 'about 2 minutes' },
+  ];
+  const SESS_STATE_TEXT = { done: 'done', now: 'now', next: 'next', skipped: 'already passed', practice: 'keep practicing' };
+  const stepInfo = (n) => SESS_STEPS[n - 1];
+  const joinList = (a) => (a.length <= 1 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]);
+  const capFirst = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
+  const Session = (function () {
+    const KEYS = [1, 2, 3, 4, 5];
+    const cl = (o) => JSON.parse(JSON.stringify(o));
+    const obj = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? cl(o) : {});
+    /** Whatever came back from storage -> a full object (the database drops empty objects and nulls). */
+    function norm(raw) {
+      const o = raw && typeof raw === 'object' ? raw : {};
+      const st = {}, rounds = {};
+      KEYS.forEach((n) => {
+        const k = 's' + n, v = o.st && o.st[k];
+        st[k] = v === 'done' || v === 'skipped' || v === 'practice' ? v : 'pending';
+        rounds[k] = +(o.rounds && o.rounds[k]) || 0;
+      });
+      return {
+        v: 1, date: String(o.date || ''), step: Math.min(6, Math.max(1, parseInt(o.step, 10) || 1)), st, rounds,
+        sub: obj(o.sub), s1: obj(o.s1), teach: obj(o.teach), ack: obj(o.ack), res: obj(o.res), past: obj(o.past),
+        last: typeof o.last === 'string' ? o.last : '', started: +o.started || 0, updatedAt: +o.updatedAt || 0,
+      };
+    }
+    const get = () => { const r = Store.session(); return r && r.date === Store.today() ? norm(r) : null; };
+    const stable = (o) => JSON.stringify(Object.assign({}, o, { updatedAt: 0 }));
+    /** Change today's session and save it (only when something changed). */
+    function update(fn) {
+      const cur = get();
+      if (!cur) return null;
+      const before = stable(cur);
+      fn(cur);
+      if (stable(cur) !== before) Store.putSession(cur);
+      return cur;
+    }
+    function create() {
+      const prev = Store.session();
+      const past = {};
+      if (prev && prev.date && prev.date !== Store.today()) {
+        const p = norm(prev);
+        Object.assign(past, p.past);
+        past[p.date] = { step: p.step, st: p.st, res: p.res };
+        Object.keys(past).sort().slice(0, -14).forEach((k) => { delete past[k]; });
+      }
+      const o = norm({ date: Store.today(), step: 1, started: Date.now() });
+      o.past = past;
+      Store.putSession(o);
+      return get();
+    }
+
+    /* ---- the seven recall questions, in a fixed order (the order of the teacher's list) ---- */
+    const recallIds = () => Defs.list().map((t) => { const q = BANK.find((x) => x.topic === 'defs' && x.fmt === 'short' && x.term === t.id); return q ? q.id : null; }).filter(Boolean);
+    /** Motion Mission questions in sheet order, leaving out ones he has already answered right twice in a row. */
+    const missionIds = () => sheetQuestions('mission-').filter((q) => {
+      const rec = Store.get(q.id);
+      return !(rec && rec.hist.length >= 2 && rec.hist.slice(-2).every((x) => x >= 1));
+    }).slice(0, MISSION_LEN).map((q) => q.id);
+    /** 10 graphs questions (no typed answers), preferring ones he has not seen or got wrong. */
+    function graphsIds() {
+      const left = BANK.filter((q) => q.topic === 'graphs' && q.type !== 'short'), out = [];
+      const wt = (q) => {
+        const rec = Store.get(q.id);
+        let w = !rec || !rec.hist.length ? 3 : rec.hist[rec.hist.length - 1] >= 1 ? 1 : 2.5;
+        if (Store.isMissed(q.id)) w += 1;
+        return w;
+      };
+      while (out.length < GRAPHS_LEN && left.length) {
+        const ws = left.map(wt);
+        let r = Math.random() * ws.reduce((a, b) => a + b, 0), k = 0;
+        for (; k < left.length; k++) { r -= ws[k]; if (r <= 0) break; }
+        out.push(left.splice(Math.min(k, left.length - 1), 1)[0].id);
+      }
+      return out;
+    }
+
+    /** Is a step's pass mark already met (so it is skipped)? Only asked of a step that has not started. */
+    function skipReason(n) {
+      if (n === 1) return recallIds().length === 0 || Defs.allCold() ? 'All seven are already known cold.' : '';
+      if (n === 2) return !Focus.has() || Focus.allFixed() ? 'All six are already fixed.' : '';
+      if (n === 3) return !Defs.has() || Defs.allCold() ? 'All seven are already known cold.' : '';
+      if (n === 5) return Array.isArray(window.TEACH_CARDS) && window.TEACH_CARDS.length ? '' : 'There are no cards.';
+      return '';
+    }
+    const untouched = (S, n) => S.st['s' + n] === 'pending' && S.rounds['s' + n] === 0;
+
+    /** Move past every step that is already passed. Saves; returns the session. */
+    function advance() {
+      if (!get()) create();
+      return update((o) => {
+        const notes = [];
+        while (o.step <= 5) {
+          const n = o.step;
+          if (n === 4 && o.sub.s4 === 'mission' && !missionIds().length) o.sub.s4 = 'g2';   // nothing left to warm up with
+          if (!untouched(o, n) || !skipReason(n)) break;
+          o.st['s' + n] = 'skipped';
+          notes.push(stepInfo(n).name);
+          o.step++;
+        }
+        if (notes.length) o.last = (o.last ? o.last + ' ' : '') + notes.map((x) => 'Skipped "' + x + '": already passed.').join(' ');
+      });
+    }
+    /** A "keep practicing" step whose pass mark has been met since (on the done screen or anywhere else) turns into done. */
+    function reconcile() {
+      const S = get();
+      if (!S) return null;
+      return update((o) => {
+        if (o.st.s2 === 'practice' && Focus.allFixed()) o.st.s2 = 'done';
+        if (o.st.s3 === 'practice' && Defs.allCold()) o.st.s3 = 'done';
+      }) || S;
+    }
+
+    /** The six rows for the home card and the done screen. */
+    function rows(S) {
+      let nowSet = false;
+      return SESS_STEPS.map((s) => {
+        let state = 'next';
+        if (s.n === 6) state = S && S.step > 5 ? 'done' : 'next';
+        else {
+          const st = S ? S.st['s' + s.n] : 'pending';
+          if (st === 'done') state = 'done';
+          else if (st === 'skipped') state = 'skipped';
+          else if (st === 'practice') state = 'practice';
+          else if (!S || S.rounds['s' + s.n] === 0) state = skipReason(s.n) ? 'skipped' : 'next';
+          if (state === 'next' && S && S.step <= 5 && !nowSet) { state = 'now'; nowSet = true; }
+        }
+        return { n: s.n, name: s.name, state };
+      });
+    }
+    /** Names of what is still open in a "keep practicing" step (live). */
+    function openItems(n) {
+      if (n === 2) { const st = Focus.all(); return Focus.list().filter((c) => !st[c.id].fixed).map((c) => c.label); }
+      if (n === 3) { const st = Defs.all(); return Defs.list().filter((t) => !st[t.id].known).map((t) => t.term); }
+      return [];
+    }
+    /** A break is offered after steps 2 and 4, on the next screen that shows a step. */
+    function pendingBreak(S) {
+      if (S.step > 2 && S.rounds.s2 > 0 && !S.ack.b2) return 2;
+      if (S.step > 4 && S.rounds.s4 > 0 && !S.ack.b4) return 4;
+      return 0;
+    }
+    return { get, update, create, advance, reconcile, rows, openItems, pendingBreak, skipReason, recallIds, missionIds, graphsIds, norm };
+  })();
+
+  /** The question screen, or a teach-back card, for whatever is next in the round. */
+  function showNextItem() {
+    const round = state.round, item = round && round.queue[round.idx];
+    if (item && item.card) showCard(); else showQuestion();
+  }
+  function endOfRound(round) {
+    if (round.session) return sessionRoundEnd(round);
+    if (round.fromDone) return doneRoundEnd(round);
+    showEnd();
+  }
+
+  /** The Start / Continue button on the home card. */
+  function sessionGo() {
+    Session.advance();
+    const S = Session.get();
+    if (!S || S.step > 5) showSessionDone(); else showInterstitial();
+  }
+  function sessionBegin() {
+    if (!Session.get()) Session.create();
+    sessionGo();
+  }
+
+  let breakTimer = null;
+  function stopBreakTimer() { if (breakTimer) { clearInterval(breakTimer); breakTimer = null; } }
+
+  /** Between steps: what is next, why, how long, and a Start button. After steps 2 and 4 a break comes first. */
+  function showInterstitial() {
+    leaveQuestion();
+    closeDialog();
+    state.screen = 'interstitial';
+    state.round = null;
+    const S = Session.get();
+    if (!S) { showHome(); return; }
+    if (S.step > 5) { showSessionDone(); return; }
+    const br = Session.pendingBreak(S);
+    if (br) { showBreak(br); return; }
+    const n = S.step, info = stepInfo(n), sub = S.sub.s4 || 'g1';
+    const openNow = n === 2 || n === 3 ? Session.openItems(n) : [];
+    let tag = '', why = info.why, time = info.time;
+    if (n === 2 && S.rounds.s2 > 0) { tag = 'Round 2 of 2'; why = `Still not fixed: ${joinList(openNow)}. One more round to move them along.`; time = 'about 8 minutes'; }
+    else if (n === 3 && S.rounds.s3 > 0) { tag = 'Round 2 of 2'; why = `Not known cold yet: ${joinList(openNow)}. One more drill to move them along.`; time = 'about 8 minutes'; }
+    else if (n === 4 && sub === 'mission') { tag = 'Warm-up'; why = 'That was under 8 of 10, so first some Motion Mission questions that use the same graph ideas.'; time = 'about 8 minutes'; }
+    else if (n === 4 && sub === 'g2') { tag = 'Second try'; why = 'Now 10 graph questions again, with the Motion Mission ideas fresh.'; time = 'about 6 minutes'; }
+    const dots = h('ol', { class: 'istrip', 'aria-hidden': 'true' }, Session.rows(S).map((r) => h('li', { class: 'is-' + r.state })));
+    const screen = h('div', { class: 'interstitial' }, [
+      h('p', { class: 'eyebrow' }, `Step ${n} of 6`),
+      h('h1', { class: 'ititle', tabindex: '-1', 'data-focus': '' }, info.name),
+      tag ? h('p', { class: 'itag' }, tag) : null,
+      S.last ? h('p', { class: 'ilast' }, S.last) : null,
+      h('p', { class: 'iwhy' }, why),
+      h('p', { class: 'itime' }, capFirst(time)),
+      h('div', { class: 'iactions' }, [
+        h('button', { class: 'btn btn-primary go-btn', type: 'button', 'data-start': '', onclick: runSessionStep }, 'Start'),
+        h('button', { class: 'btn btn-quiet', type: 'button', onclick: () => showHome() }, 'Home'),
+      ]),
+      dots,
+    ]);
+    mountScreen(screen, '[data-start]');
+    announce(`Step ${n} of 6. ${info.name}.`);
+  }
+  function showBreak(after) {
+    state.screen = 'break';
+    const deadline = Date.now() + 5 * 60 * 1000;
+    const clock = h('p', { class: 'bclock', role: 'timer', 'aria-label': 'Break time left' }, '5:00');
+    const tick = () => {
+      const left = Math.max(0, Math.round((deadline - Date.now()) / 1000));
+      clock.textContent = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+      if (!left) stopBreakTimer();
+    };
+    const screen = h('div', { class: 'interstitial is-break' }, [
+      h('p', { class: 'eyebrow' }, `After step ${after}`),
+      h('h1', { class: 'ititle', tabindex: '-1', 'data-focus': '' }, 'Take a 5-minute break'),
+      h('p', { class: 'iwhy' }, 'Stand up, get a drink of water, and look away from the screen. Your answers are saved.'),
+      clock,
+      h('div', { class: 'iactions' }, [
+        h('button', { class: 'btn btn-primary go-btn', type: 'button', 'data-start': '', onclick: () => { Session.update((o) => { o.ack['b' + after] = 1; }); showInterstitial(); } }, "I'm back"),
+        h('button', { class: 'btn btn-quiet', type: 'button', onclick: () => showHome() }, 'Home'),
+      ]),
+    ]);
+    mountScreen(screen, '[data-start]');
+    breakTimer = setInterval(tick, 1000);
+  }
+
+  /** Start button: run the current step's round. */
+  function runSessionStep() {
+    const S = Session.get();
+    if (!S) { showHome(); return; }
+    const n = S.step, tag = { step: n };
+    if (n === 1) startRecall(tag);
+    else if (n === 2) startRound('focus', { session: tag, planMax: SESSION_FOCUS_PLAN, fillExtra: 3 });
+    else if (n === 3) startRound('defs', { session: tag, prio: Defs.list().map((t) => t.id).filter((id) => S.s1[id] === 0) });
+    else if (n === 4) {
+      if (S.sub.s4 === 'mission') startRound('mission', { session: tag, ids: Session.missionIds(), label: 'Motion Mission' });
+      else startRound('ids', { session: tag, ids: Session.graphsIds(), label: 'Graphs check' });
+    } else if (n === 5) startTeach(tag);
+    else showSessionDone();
+  }
+  function startRecall(tag) {
+    const ids = Session.recallIds();
+    if (!ids.length) { state.homeNote = 'There are no questions for that yet.'; showHome(); return; }
+    Store.noteRound();
+    state.round = { mode: 'recall', opts: {}, label: modeLabel('recall'), queue: ids.map((id) => ({ id })), idx: 0, results: [], total: ids.length, retryOK: false, noHint: true, session: tag };
+    showQuestion();
+  }
+
+  /** A round that belongs to the session just ended: record the result, then on to the next interstitial. */
+  function sessionRoundEnd(round) {
+    const S0 = Session.get();
+    const n = round.session.step;
+    if (!S0 || S0.step !== n) { showHome(); return; }   // another device has already moved on
+    const res = round.results, tot = res.length;
+    const right = res.filter((r) => r.score >= 1).length;
+    Session.update((o) => {
+      const k = 's' + n;
+      o.rounds[k]++;
+      if (n === 1) {
+        const by = {};
+        res.forEach((r) => { const q = byId[r.id]; if (q && q.term) by[q.term] = r.score >= 1 ? 1 : 0; });
+        o.s1 = by; o.res.s1 = `${right} of ${tot}`;
+        o.st.s1 = 'done'; o.step = 2;
+        o.last = `Definitions from memory: ${right} of ${tot} right.` + (right < tot ? ' The ones you missed come first in step 3.' : '');
+      } else if (n === 2) {
+        const L = Focus.list().length, fx = Focus.fixedCount();
+        if (Focus.allFixed()) { o.st.s2 = 'done'; o.step = 3; o.last = `All ${L} review sheet misses are fixed.`; }
+        else if (o.rounds.s2 >= SESSION_FOCUS_ROUNDS) { o.st.s2 = 'practice'; o.step = 3; o.last = `${fx} of ${L} fixed. The rest are marked keep practicing.`; }
+        else o.last = `${fx} of ${L} fixed so far.`;
+      } else if (n === 3) {
+        const L = Defs.list().length, cd = Defs.coldCount();
+        if (Defs.allCold()) { o.st.s3 = 'done'; o.step = 4; o.last = `All ${L} definitions are known cold.`; }
+        else if (o.rounds.s3 >= SESSION_DEFS_ROUNDS) { o.st.s3 = 'practice'; o.step = 4; o.last = `${cd} of ${L} known cold. The rest are marked keep practicing.`; }
+        else o.last = `${cd} of ${L} known cold so far.`;
+      } else if (n === 4) {
+        const sub = o.sub.s4 || 'g1';
+        if (sub === 'mission') { o.sub.s4 = 'g2'; o.last = `Motion Mission: ${right} of ${tot} right the first time.`; }
+        else {
+          o.res.s4 = `${right} of ${tot}`;
+          if (right >= GRAPHS_PASS) { o.st.s4 = 'done'; o.step = 5; o.last = `Graphs check: ${right} of ${tot} right the first time.`; }
+          else if (sub === 'g1') { o.sub.s4 = 'mission'; o.last = `Graphs check: ${right} of ${tot}. The pass mark is ${GRAPHS_PASS}.`; }
+          else { o.st.s4 = 'practice'; o.step = 5; o.last = `Graphs check: ${right} of ${tot} the second time. It is marked keep practicing.`; }
+        }
+      } else if (n === 5) {
+        const t = round.teach || {}, cards = (window.TEACH_CARDS || []).length;
+        const got = Object.keys(t).filter((c) => t[c] === 1).length;
+        o.teach = Object.assign({}, t); o.res.s5 = `${got} of ${cards}`;
+        o.st.s5 = 'done'; o.step = 6;
+        o.last = `Teach it back: ${got} of ${cards} marked got it.`;
+      }
+    });
+    sessionGo();
+  }
+  /** A practice round started from the done screen ended: update the graphs mark if it was a graphs round, then back to the summary. */
+  function doneRoundEnd(round) {
+    if (round.fromDone === 'graphs') {
+      const right = round.results.filter((r) => r.score >= 1).length;
+      Session.update((o) => { if (o.st.s4 === 'practice' && right >= GRAPHS_PASS) { o.st.s4 = 'done'; o.res.s4 = `${right} of ${round.results.length}`; } });
+    }
+    showSessionDone();
+  }
+
+  /* ---- Teach it back: say it out loud cards ---- */
+  /** Two questions related to a card, picked by focus concept / topic / key definitions; unseen and missed ones first. */
+  function relatedFor(card, n) {
+    const specs = card.more && card.more.length ? card.more : [];
+    const used = new Set(), out = [];
+    const ok = (spec) => (q) => q.type !== 'short' && !q.chain && !used.has(q.id) && (spec.focus ? q.focus === spec.focus : spec.topic ? q.topic === spec.topic : spec.defs ? !!q.term : false);
+    const wt = (q, prev) => {
+      const rec = Store.get(q.id);
+      let w = !rec || !rec.hist.length ? 1.5 : rec.hist[rec.hist.length - 1] >= 1 ? 0.5 : 1.6;
+      if (prev && (q.type === prev.type || (q.term && q.term === prev.term))) w *= 0.35;
+      return w;
+    };
+    for (let i = 0; i < n && specs.length; i++) {
+      let cands = BANK.filter(ok(specs[i % specs.length]));
+      if (!cands.length) cands = BANK.filter(ok(specs[(i + 1) % specs.length]));
+      if (!cands.length) break;
+      const prev = out[out.length - 1] || null;
+      const ws = cands.map((q) => wt(q, prev));
+      let r = Math.random() * ws.reduce((a, b) => a + b, 0), k = 0;
+      for (; k < cands.length; k++) { r -= ws[k]; if (r <= 0) break; }
+      const q = cands[Math.min(k, cands.length - 1)];
+      used.add(q.id); out.push(q);
+    }
+    return out;
+  }
+  function startTeach(tag) {
+    const cards = Array.isArray(window.TEACH_CARDS) ? window.TEACH_CARDS : [];
+    Store.noteRound();
+    state.round = { mode: 'teach', opts: {}, label: modeLabel('teach'), queue: cards.map((c) => ({ card: c.id })), idx: 0, results: [], total: cards.length, retryOK: false, session: tag, teach: {} };
+    showNextItem();
+  }
+  function showCard() {
+    leaveQuestion();
+    const round = state.round, item = round.queue[round.idx];
+    const card = (window.TEACH_CARDS || []).find((c) => c.id === item.card);
+    state.screen = 'card';
+    const cardN = round.queue.slice(0, round.idx + 1).filter((x) => x.card).length;
+    const pct = Math.round((round.idx / round.queue.length) * 100);
+    const head = h('div', { class: 'qhead' }, [
+      h('button', { class: 'btn btn-quiet btn-small', type: 'button', onclick: askLeave }, 'Home'),
+      h('div', { class: 'progress' }, [
+        h('span', { class: 'ptext' }, `Card ${cardN} / ${round.total}`),
+        h('span', { class: 'pbar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(pct), 'aria-label': 'Round progress' }, h('i', { style: 'width:' + pct + '%' })),
+      ]),
+      syncNode(),
+    ]);
+    const answer = h('div', { class: 'tb-answer', hidden: true, 'aria-live': 'polite' });
+    if (card.modelDefs) {
+      answer.appendChild(h('div', { class: 'note note--plain' }, [
+        h('h3', { class: 'note-head' }, 'The 7 definitions'),
+        h('ol', { class: 'tb-defs' }, Defs.list().map((t) => h('li', null, [h('strong', null, t.term + ': '), h('span', { class: 'def-hl' }, t.def)]))),
+      ]));
+    } else {
+      answer.appendChild(h('div', { class: 'note note--plain' }, [
+        h('h3', { class: 'note-head' }, 'A good answer'),
+        h('p', { class: 'tb-model' }, card.model),
+      ]));
+    }
+    const mark = (got) => {
+      round.teach[card.id] = got ? 1 : 0;
+      if (!got) {
+        const more = relatedFor(card, 2);
+        round.queue.splice(round.idx + 1, 0, ...more.map((q) => ({ id: q.id, extra: true, from: card.id })));
+      }
+      next();
+    };
+    const said = h('button', { class: 'btn btn-primary say-btn', type: 'button', 'data-say': '' }, 'I said it');
+    const marks = h('div', { class: 'tb-marks' }, [
+      h('p', { class: 'tb-ask' }, 'Did you say it the same way?'),
+      h('div', { class: 'seg' }, [
+        h('button', { class: 'btn btn-primary tb-got', type: 'button', 'data-got': '', onclick: () => mark(true) }, 'Got it'),
+        h('button', { class: 'btn tb-not', type: 'button', 'data-not': '', onclick: () => mark(false) }, 'Not yet'),
+      ]),
+    ]);
+    marks.hidden = true;
+    said.addEventListener('click', () => {
+      said.hidden = true; answer.hidden = false; marks.hidden = false;
+      try { marks.querySelector('[data-got]').focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+      try { answer.scrollIntoView({ block: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' }); } catch (e) { /* ignore */ }
+    });
+    const body = h('div', { class: 'tb-card' }, [
+      h('div', { class: 'chips' }, [h('span', { class: 'chip' }, 'Say it out loud'), h('span', { class: 'chip' }, card.title)]),
+      h('h2', { class: 'prompt tb-prompt', id: 'qprompt', tabindex: '-1', 'data-focus': '' }, card.prompt),
+      h('p', { class: 'quiet' }, 'Say your answer out loud first. Then tap the button to see a good answer.'),
+      said, answer, marks,
+    ]);
+    mountScreen(h('div', { class: 'qscreen tb-screen' }, [head, body]), '[data-say]');
+    announce(`Card ${cardN} of ${round.total}.`);
+  }
+
+  /* ---- the done screen ---- */
+  function showSessionDone() {
+    leaveQuestion();
+    closeDialog();
+    state.screen = 'sessdone';
+    state.round = null;
+    Session.reconcile();
+    const S = Session.get();
+    if (!S) { showHome(); return; }
+    const rows = Session.rows(S);
+    const detail = (n, st_) => {
+      const s = S.st['s' + n];
+      if (st_ === 'skipped') return n === 1 || n === 3 ? 'Already known cold, so skipped.' : 'Already fixed, so skipped.';
+      if (n === 1) return S.res.s1 ? `${S.res.s1} right from memory.` : '';
+      if (n === 2) return s === 'practice' ? 'Still not fixed: ' + joinList(Session.openItems(2)) + '.' : 'All six fixed.';
+      if (n === 3) return s === 'practice' ? 'Not known cold yet: ' + joinList(Session.openItems(3)) + '.' : 'All seven known cold.';
+      if (n === 4) return S.res.s4 ? `${S.res.s4} right the first time.` + (s === 'practice' ? ' Worth another look.' : '') : '';
+      if (n === 5) return S.res.s5 ? `${S.res.s5} marked got it.` : '';
+      return '';
+    };
+    const practiceBtn = (n) => {
+      if (n === 2) return h('button', { class: 'btn btn-small', type: 'button', 'data-practice': 's2', onclick: () => startRound('focus', { fromDone: 'focus', planMax: SESSION_FOCUS_PLAN, fillExtra: 3 }) }, 'Practice these now');
+      if (n === 3) return h('button', { class: 'btn btn-small', type: 'button', 'data-practice': 's3', onclick: () => startRound('defs', { fromDone: 'defs' }) }, 'Practice these now');
+      if (n === 4) return h('button', { class: 'btn btn-small', type: 'button', 'data-practice': 's4', onclick: () => startRound('ids', { fromDone: 'graphs', ids: Session.graphsIds(), label: 'Graphs check' }) }, 'Practice graphs now');
+      return null;
+    };
+    const anyPractice = rows.some((r) => r.state === 'practice');
+    const list = h('ol', { class: 'sdone-list' }, rows.filter((r) => r.n <= 5).map((r) => h('li', { class: 'sdone-row is-' + r.state, 'data-step': String(r.n) }, [
+      h('div', { class: 'sdone-top' }, [
+        h('span', { class: 'sname' }, r.name),
+        h('span', { class: 'sstate is-' + r.state }, [h('span', { class: 'smark', 'aria-hidden': 'true', html: r.state === 'done' || r.state === 'skipped' ? ICON.check : '' }), SESS_STATE_TEXT[r.state]]),
+      ]),
+      detail(r.n, r.state) ? h('p', { class: 'sdone-detail' }, detail(r.n, r.state)) : null,
+      r.state === 'practice' ? practiceBtn(r.n) : null,
+    ])));
+    const screen = h('div', { class: 'endscreen sess-done' }, [
+      h('div', { class: 'endtop' }, [
+        h('p', { class: 'eyebrow' }, "Today's session"),
+        h('h1', { class: 'bigscore bigscore--text', tabindex: '-1', 'data-focus': '' }, [h('span', null, 'Session finished')]),
+        h('p', null, anyPractice ? 'Here is what you finished. The steps marked keep practicing are worth a few more minutes.' : 'Here is what you finished. Everything on the plan is done.'),
+      ]),
+      h('div', { class: 'endgrid' }, [
+        h('section', { 'aria-labelledby': 'sdoneH' }, [h('h2', { class: 'section-title', id: 'sdoneH' }, 'What you finished'), list]),
+        h('section', { class: 'sdone-next', 'aria-labelledby': 'sdoneN' }, [
+          h('h2', { class: 'section-title', id: 'sdoneN' }, 'Before the test'),
+          h('p', { class: 'sdone-line', 'data-line': 'tonight' }, 'Tonight: write the 7 definitions once from memory.'),
+          h('p', { class: 'sdone-line', 'data-line': 'tomorrow' }, 'Tomorrow: read the study guide on the way.'),
+          h('a', { class: 'btn sdone-link', href: 'study-guide.pdf', target: '_blank', rel: 'noopener' }, 'Open the study guide (PDF)'),
+          h('div', { class: 'end-actions' }, [h('button', { class: 'btn btn-primary', type: 'button', onclick: () => showHome() }, 'Home')]),
+        ]),
+      ]),
+    ]);
+    mountScreen(screen);
+    announce("Today's session is finished.");
+  }
+
+  /* =====================================================================
    * Home
    * ===================================================================== */
   function termChip(t, st) {
@@ -1040,6 +1540,26 @@
     ]);
   }
 
+  /** "Today's session" card, first and biggest on the home screen: the six steps with a mark each, and one big button. */
+  function sessionCard() {
+    const S = Session.get();
+    const rows = Session.rows(S);
+    const finished = !!S && S.step > 5;
+    const label = !S ? "Start today's session" : finished ? "See today's summary" : 'Continue';
+    return h('section', { class: 'session-card' + (finished ? ' is-done' : ''), 'aria-labelledby': 'sessH', 'data-session-state': !S ? 'new' : finished ? 'done' : 'going' }, [
+      h('div', { class: 'sess-head' }, [
+        h('h2', { class: 'sess-title', id: 'sessH' }, "Today's session"),
+        h('p', { class: 'sess-time' }, 'About 1 hour'),
+      ]),
+      h('ol', { class: 'sess-steps', 'aria-label': 'The steps and where you are' }, rows.map((r) => h('li', { class: 'sstep is-' + r.state, 'data-step': String(r.n), 'aria-label': `Step ${r.n}, ${r.name}: ${SESS_STATE_TEXT[r.state]}`, 'aria-current': r.state === 'now' ? 'step' : null }, [
+        h('span', { class: 'smark', 'aria-hidden': 'true', html: r.state === 'done' || r.state === 'skipped' ? ICON.check : '' }),
+        h('span', { class: 'sname', 'aria-hidden': 'true' }, r.name),
+        h('span', { class: 'sstate', 'aria-hidden': 'true' }, SESS_STATE_TEXT[r.state]),
+      ]))),
+      h('button', { class: 'btn btn-primary sess-go', type: 'button', 'data-session-go': '', onclick: finished ? showSessionDone : sessionBegin }, label),
+    ]);
+  }
+
   function showHome() {
     leaveQuestion();
     closeDialog();
@@ -1049,11 +1569,15 @@
     const reviewN = sheetQuestions('review-').length;
     const missionN = sheetQuestions('mission-').length;
 
-    const hero = h('div', { class: 'home-main' }, [
-      h('p', { class: 'eyebrow', html: countdownHtml() }),
-      h('h1', { class: 'wordmark', tabindex: '-1', 'data-focus': '' }, ["Max's ", h('span', null, 'Motion'), ' Test Prep']),
-      syncNode(),
+    const top = h('div', { class: 'home-top' }, [
+      h('div', { class: 'top-row' }, [
+        h('p', { class: 'eyebrow', html: countdownHtml() }),
+        h('h1', { class: 'wordmark', tabindex: '-1', 'data-focus': '' }, ["Max's ", h('span', null, 'Motion'), ' Test Prep']),
+        syncNode(),
+      ]),
       state.homeNote ? h('p', { class: 'home-note', role: 'status' }, state.homeNote) : null,
+    ]);
+    const hero = h('div', { class: 'home-main' }, [
       focusCard(),
       defsCard(),
       h('button', { class: 'btn btn-primary start-btn', type: 'button', onclick: () => startRound('quiz') }, [
@@ -1097,7 +1621,7 @@
       mountScreen(h('div', { class: 'home' }, h('p', { class: 'problem' }, 'The question bank did not load. Reload the page to try again.')));
       return;
     }
-    mountScreen(h('div', { class: 'home' }, [hero, side, foot]));
+    mountScreen(h('div', { class: 'home' }, [top, sessionCard(), hero, side, foot]));
     QS.refresh(); // pick up what other devices did (throttled; re-draws this screen only if something changed)
   }
   function askReset() {
@@ -1125,7 +1649,7 @@
 
     // progress
     const doneCount = round.queue.slice(0, round.idx + 1).filter((x) => !x.retry).length;
-    const ptext = item.retry ? (item.retry === 'recheck' ? 'One more time' : 'Another try') : `${Math.min(doneCount, round.total)} / ${round.total}`;
+    const ptext = item.retry ? (item.retry === 'recheck' ? 'One more time' : 'Another try') : item.extra ? 'Practice question' : `${Math.min(doneCount, round.total)} / ${round.total}`;
     const pct = Math.round((round.idx / round.queue.length) * 100);
 
     ctx.answerEl = h('div', { class: 'qanswer' });
@@ -1138,7 +1662,7 @@
     ctx.setReady = (b) => { ctx.ready = !!b; if (!ctx.answered && !ctx.busy) ctx.primary.disabled = !b; };
 
     const bar = h('div', { class: 'actionbar' });
-    ctx.hintBtn = q.hint ? h('button', { class: 'btn btn-quiet btn-small', type: 'button', onclick: () => {
+    ctx.hintBtn = q.hint && !round.noHint ? h('button', { class: 'btn btn-quiet btn-small', type: 'button', onclick: () => {
       if (ctx.hintEl) { ctx.hintEl.remove(); ctx.hintEl = null; return; }
       ctx.hintEl = h('p', { class: 'hint-box', html: '<strong>Hint:</strong> ' + rich(q.hint) });
       ctx.answerEl.insertBefore(ctx.hintEl, ctx.answerEl.firstChild);
@@ -1148,7 +1672,7 @@
     ctx.bar = bar;
 
     const promptEl = h('div', { class: 'qprompt' }, [
-      h('div', { class: 'chips' }, [h('span', { class: 'chip' }, topicName(q.topic)), q.spot ? h('span', { class: 'chip' }, 'Spot the mistake') : null, item.retry ? h('span', { class: 'chip retry' }, item.retry === 'recheck' ? 'To clear it' : "Let's try that one again") : null]),
+      h('div', { class: 'chips' }, [h('span', { class: 'chip' }, topicName(q.topic)), q.spot ? h('span', { class: 'chip' }, 'Spot the mistake') : null, item.retry ? h('span', { class: 'chip retry' }, item.retry === 'recheck' ? 'To clear it' : "Let's try that one again") : null, item.extra ? h('span', { class: 'chip' }, 'Practice for the last card') : null]),
       h('h2', { class: 'prompt', id: 'qprompt', tabindex: '-1', 'data-focus': '', html: rich(q.prompt) }),
     ]);
 
@@ -1264,7 +1788,7 @@
     ctx.idkBtn.hidden = true;
     ctx.primary.hidden = false;
     ctx.primary.disabled = false;
-    ctx.primaryLabel(round.idx >= round.queue.length - 1 || round.finishEarly ? 'See results' : 'Next');
+    ctx.primaryLabel(round.idx >= round.queue.length - 1 || round.finishEarly ? (round.session || round.fromDone ? 'Continue' : 'See results') : 'Next');
     const kh = ctx.bar.querySelector('.keyhint');
     if (kh) kh.textContent = 'Enter goes on. Esc leaves.';
     announce(res.tone === 'good' || score >= 1 ? 'Correct.' : score > 0 ? 'Partly right.' : 'Not yet.');
@@ -1306,7 +1830,7 @@
     const round = state.round;
     if (!round) return showHome();
     round.idx++;
-    if (round.finishEarly || round.idx >= round.queue.length) showEnd(); else showQuestion();
+    if (round.finishEarly || round.idx >= round.queue.length) endOfRound(round); else showNextItem();
   }
 
   /* =====================================================================
@@ -2090,6 +2614,7 @@
     showHome, startRound, next, finalize,
     startIds(ids) { startRound('ids', { ids }); },
     Defs, Focus, startDrill() { startRound('defs'); }, startFocus() { startRound('focus'); }, openWatch,
+    Session, showInterstitial, showSessionDone, SESS_STEPS,
     bank: () => BANK, evalGoal, parseNum, validateAI, buildGradePrompt,
     isAiOff: () => aiOff, whenSampleReady: () => samplePromise,
   };

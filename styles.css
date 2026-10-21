@@ -451,7 +451,7 @@ strong { font-weight: 700; }
 .code-go { width: 100%; min-height: 64px; font-family: var(--font-hand); font-weight: 400; font-size: 1.7rem; }
 .sync { font-size: .82rem; line-height: 1.3; color: var(--ink-soft); }
 .sync[data-state="offline"] { color: var(--ink); }
-.home-main .sync { display: block; margin: -8px 0 14px; }
+.home-top .sync { display: block; flex-basis: 100%; margin: 2px 0 0; order: 3; }
 .qhead .sync { flex: 0 1 auto; max-width: 30rem; text-align: right; }
 @media (max-width: 759px) {
   .qhead { flex-wrap: wrap; row-gap: 2px; }
@@ -567,4 +567,155 @@ strong { font-weight: 700; }
   .defs-card .defs-chips { gap: 4px; }
   .defs-card .defs-go { min-height: 40px; }
   .defs-card .defs-legend { display: none; }
+}
+
+/* ---------- Today's session: home card, interstitials, teach-back cards, done screen ---------- */
+.home { gap: 18px; }
+.home-top, .session-card, .home-foot { grid-column: 1 / -1; }
+@media (min-width: 900px) { .home { gap: 18px 44px; } }
+.top-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 20px; }
+.top-row .eyebrow { order: 2; }
+.top-row .wordmark { order: 1; margin: 2px 0 6px; }
+.home-top .home-note { margin: 4px 0 0; }
+
+.session-card {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px 24px; padding: 12px 16px 14px;
+  background: var(--note-part-bg); border: 3px solid var(--ink); border-radius: var(--hand-radius); box-shadow: var(--pen-shadow);
+}
+.session-card.is-done { border-color: var(--good); background: var(--note-good-bg); }
+.sess-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; }
+.sess-title { font-family: var(--font-hand); font-weight: 400; font-size: 2rem; line-height: 1.05; }
+.sess-time { font-family: var(--font-hand); font-size: 1.3rem; color: var(--ink-soft); line-height: 1.1; }
+.sess-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px 28px; counter-reset: sstep; }
+.sstep { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 32px; color: var(--ink-soft); line-height: 1.2; }
+.sstep .sname { font-size: 1rem; }
+.sstate, .sdone-top .sstate {
+  display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; line-height: 1.2; white-space: nowrap; color: var(--ink-soft);
+}
+.smark {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
+  border: 2px dashed var(--ink-soft); border-radius: 50%; color: var(--paper); background: transparent; overflow: hidden;
+}
+.smark .icon, .smark .ico { width: 13px; height: 13px; display: block; }
+.sstate .smark { width: 16px; height: 16px; border-width: 1.5px; }
+.sstate .smark .icon, .sstate .smark .ico { width: 10px; height: 10px; }
+.sstep.is-done, .sstep.is-skipped { color: var(--ink); }
+.sstep.is-done .smark { background: var(--good); border: 2px solid var(--good); }
+.sstep.is-skipped .smark { background: var(--good); border: 2px dashed var(--good); opacity: .8; }
+.sstep.is-now { color: var(--ink); font-weight: 700; }
+.sstep.is-now .smark { border: 2px solid var(--ink); background: var(--hl); position: relative; }
+.sstep.is-now .smark::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); }
+.sstep.is-now .sstate { color: var(--on-hl); background: var(--hl); padding: 0 8px; border-radius: 999px; font-weight: 700; }
+.sstep.is-practice { color: var(--ink); }
+.sstep.is-practice .smark { border: 2px solid var(--ink); background: linear-gradient(90deg, var(--hl) 50%, transparent 50%); }
+.sstep.is-practice .sstate { color: var(--ink); }
+.sstep.is-next .sstate { opacity: .75; }
+.sess-go { width: 100%; min-height: 62px; font-family: var(--font-hand); font-weight: 400; font-size: 1.9rem; align-self: end; }
+@media (min-width: 900px) {
+  .session-card { grid-template-columns: minmax(0, 1fr) 300px; grid-template-areas: "head go" "steps go"; align-items: start; padding-block: 10px 14px; }
+  .sess-head { grid-area: head; }
+  .sess-steps { grid-area: steps; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, auto); grid-auto-flow: column; }
+  .sess-go { grid-area: go; align-self: center; min-height: 92px; font-size: 2.1rem; }
+}
+@media (max-width: 899px) {
+  .sess-title { font-size: 1.75rem; }
+  .sess-go { min-height: 64px; }
+}
+@media (max-width: 380px) { .sstate { font-size: .74rem; } .sstep { gap: 8px; } }
+
+/* home: a bit more compact on laptops so the session card fits above the rest without scrolling */
+@media (max-height: 820px) and (min-width: 900px) {
+  .home { gap: 12px 32px; }
+  .home-top .wordmark { font-size: 2.2rem; margin-block: 0 4px; }
+  .top-row .eyebrow { font-size: 1.15rem; }
+  .session-card { gap: 4px 24px; padding-block: 8px 10px; }
+  .sess-title { font-size: 1.75rem; }
+  .sstep { min-height: 28px; }
+  .focus-card, .defs-card { margin-bottom: 8px; padding: 6px 12px 7px; gap: 4px; }
+  .focus-card .focus-title { font-size: 1.15rem; }
+  .focus-head { gap: 8px; }
+  .focus-go, .defs-card .defs-go { min-height: 38px; padding-block: 4px; font-size: .95rem; }
+  .defs-card .defs-title { font-size: 1.15rem; }
+  .defs-card .defs-count, .focus-count { font-size: .9rem; }
+  .focus-chips .fchip, .defs-card .dchip { font-size: .74rem; padding: 1px 7px 1px 4px; gap: 4px; }
+  .defs-card .dmark, .focus-chips .dmark { width: 13px; height: 13px; }
+  .start-btn { min-height: 56px; padding-block: 6px; }
+  .start-btn .t { font-size: 1.5rem; }
+  .start-btn .s { font-size: .85rem; }
+  .home-actions { margin-top: 8px; }
+  .modes { margin-top: 8px; }
+  .mode-btn { min-height: 52px; padding-block: 4px; }
+  .topics { gap: 8px; }
+  .topic-card { padding-block: 6px; gap: 2px; }
+  .home-foot { margin-top: 0; }
+}
+
+/* ---------- interstitial between steps ---------- */
+.interstitial { display: grid; gap: 12px; justify-items: start; max-width: 40rem; margin: 9vh auto 0; }
+.ititle { font-family: var(--font-hand); font-weight: 400; font-size: clamp(2.2rem, 5vw, 3.1rem); line-height: 1.05; }
+.itag { font-family: var(--font-hand); font-size: 1.35rem; color: var(--accent); line-height: 1.1; }
+.ilast { padding: 8px 14px; border-left: 4px solid var(--good); background: var(--note-good-bg); border-radius: 0 8px 8px 0; font-size: 1rem; }
+.iwhy { font-size: 1.3rem; line-height: 1.4; max-width: 34rem; }
+.itime { font-family: var(--font-hand); font-size: 1.4rem; color: var(--ink-soft); line-height: 1.1; }
+.iactions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; width: 100%; margin-top: 6px; }
+.go-btn { min-width: 12rem; min-height: 68px; font-family: var(--font-hand); font-weight: 400; font-size: 2rem; }
+.istrip { list-style: none; margin: 10px 0 0; padding: 0; display: flex; gap: 8px; }
+.istrip li { width: 26px; height: 12px; border: 2px dashed var(--ink-soft); border-radius: 6px; }
+.istrip li.is-done, .istrip li.is-skipped { background: var(--good); border: 2px solid var(--good); }
+.istrip li.is-skipped { border-style: dashed; opacity: .7; }
+.istrip li.is-now { background: var(--hl); border: 2px solid var(--ink); }
+.istrip li.is-practice { background: linear-gradient(90deg, var(--hl) 50%, transparent 50%); border: 2px solid var(--ink); }
+.is-break .bclock { font-family: var(--font-hand); font-size: 3.4rem; line-height: 1; font-variant-numeric: tabular-nums; }
+@media (max-width: 759px) {
+  .interstitial { margin-top: 3vh; }
+  .iwhy { font-size: 1.2rem; }
+  .go-btn { width: 100%; }
+}
+
+/* ---------- teach it back: say-it-out-loud cards ---------- */
+.tb-card { display: grid; gap: 14px; max-width: 46rem; justify-items: start; margin-top: 4vh; }
+.tb-prompt { font-size: 1.6rem; line-height: 1.35; max-width: 34rem; }
+.say-btn { min-width: 14rem; min-height: 76px; font-family: var(--font-hand); font-weight: 400; font-size: 2.2rem; }
+.tb-answer { width: 100%; }
+.tb-model { font-size: 1.35rem; line-height: 1.4; font-weight: 700; }
+.tb-defs { margin: 6px 0 0; padding-left: 1.5em; display: grid; gap: 4px; font-size: 1.12rem; line-height: 1.35; }
+.tb-marks { display: grid; gap: 8px; width: 100%; }
+.tb-ask { font-family: var(--font-hand); font-size: 1.35rem; color: var(--ink-soft); line-height: 1.2; }
+.tb-marks .btn { min-width: 9.5rem; min-height: 64px; font-family: var(--font-hand); font-weight: 400; font-size: 1.7rem; }
+@media (max-width: 759px) {
+  .tb-card { margin-top: 1vh; }
+  .tb-prompt { font-size: 1.4rem; }
+  .say-btn { width: 100%; }
+  .tb-marks .seg .btn { flex: 1 1 8rem; }
+}
+@media (max-height: 820px) and (min-width: 900px) {
+  .tb-card { margin-top: 1vh; gap: 10px; }
+  .say-btn { min-height: 68px; }
+  .tb-defs { gap: 2px; font-size: 1.02rem; }
+  .tb-marks .btn { min-height: 56px; }
+}
+
+/* ---------- session done screen ---------- */
+.sdone-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.sdone-row { display: grid; gap: 4px; padding: 8px 14px 10px 18px; background: var(--card); border: 2px solid var(--ink-soft); border-radius: var(--hand-radius); justify-items: start; }
+.sdone-row.is-done, .sdone-row.is-skipped { border-color: var(--good); }
+.sdone-row.is-practice { border-color: var(--ink); background: var(--note-part-bg); }
+.sdone-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; width: 100%; }
+.sdone-row .sname { font-family: var(--font-hand); font-size: 1.4rem; line-height: 1.1; }
+.sdone-row .sstate { padding: 2px 10px 2px 6px; border: 1.5px dashed var(--ink-soft); border-radius: 999px; font-size: .84rem; }
+.sdone-row .sstate.is-done, .sdone-row .sstate.is-skipped { border-style: solid; border-color: var(--good); color: var(--ink); font-weight: 700; background: var(--note-good-bg); }
+.sdone-row .sstate.is-done .smark, .sdone-row .sstate.is-skipped .smark { background: var(--good); border: 1.5px solid var(--good); }
+.sdone-row .sstate.is-practice { border-style: solid; border-color: var(--ink); color: var(--ink); font-weight: 700; }
+.sdone-row .sstate.is-practice .smark { background: linear-gradient(90deg, var(--hl) 50%, transparent 50%); border: 1.5px solid var(--ink); }
+.sdone-detail { font-size: 1rem; line-height: 1.35; color: var(--ink-soft); }
+.sdone-next { display: grid; gap: 10px; align-content: start; justify-items: start; }
+.sdone-line { font-family: var(--font-hand); font-size: 1.6rem; line-height: 1.25; }
+.sdone-link { text-decoration: none; }
+@media (min-width: 900px) {
+  .endscreen.sess-done .endgrid { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 40px; }
+}
+@media (max-height: 820px) and (min-width: 900px) {
+  .endscreen.sess-done { gap: 14px; }
+  .sdone-list { gap: 6px; }
+  .sdone-row { padding-block: 5px 7px; }
 }
