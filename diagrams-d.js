@@ -672,15 +672,13 @@
   /* ---------------------------------------------------------------- catch */
   SCENES.catch = function (c) {
     const gP = c.gP, pen = c.pen, PRE = 0.7, HOLD = 3.4, KC = 3.0;
-    const G = 316, SC = 2.4, BY = 230, MC0 = [486, BY], XC = MC0[0] - 20, D = 60, RECOIL = 46, X_START = 60;
+    const G = 316, SC = 2.4, BY = 230, MC0 = [432, BY], XC = MC0[0] - 20, D = 56, RECOIL = 40, X_START = 40;
     c.setH(356);
     groundLine(gP, pen, G, 14, 586);
-    const pl = S.group(gP, 'plate-big');
-    plate(pl, pen, 0, 0); pl.setAttribute('transform', `translate(430 ${G + 1}) scale(1.9)`);
     const cat = makeFigure(gP, pen, { sc: SC, facing: -1, jersey: 'sk-fill-accent', cap: 'sk-fill-accent', capBack: true, mask: true, seed: 51, lw: 3.8 });
-    cat.place(552, G);
+    cat.place(498, G);
     const mg = S.group(gP, 'mitt-g');
-    mitt(mg, pen, 32);
+    mitt(mg, pen, 29);
     const base = { legF: [80, 5], legB: [85, 8], lean: 10, armB: [30, 20] };
 
     // tape under the path with strobe dots
@@ -692,7 +690,7 @@
     for (let i = 0; i <= 8; i++) dots.push(makeDot(dotsG, pen, 4, 'sk-accent'));
     c.fade('dots', dotsG);
     const tagG = S.group(gP, 'gaps');
-    S.text(tagG, XC + 20, BY - 62, 'gaps get smaller', { anchor: 'middle', size: 20, cls: 'sk-text-bad' });
+    S.text(tagG, XC - 10, BY - 62, 'gaps get smaller', { anchor: 'middle', size: 20, cls: 'sk-text-bad' });
     c.fade('gaps', tagG);
     const burstG = burst(gP, pen, 22, 40, 7, 'sk-bad');
 
@@ -711,7 +709,7 @@
     const arrow = makeArrow(gP, 'sk-accent', 4.6, 15, 3);
     c.fade('arrow', arrow.g);
     const zl = S.group(gP, 'zoomlab');
-    S.text(zl, 586, 124, 'zoomed in on the catch', { anchor: 'end', size: 18, cls: 'sk-text-soft' });
+    S.text(zl, 586, 112, 'zoomed in on the catch', { anchor: 'end', size: 18, cls: 'sk-text-soft' });
     c.fade('labels', zl);
 
     const V = () => KC * c.cfg.mph;
@@ -882,7 +880,7 @@
           gapLine.setAttribute('x1', bx.toFixed(1)); gapLine.setAttribute('y1', by.toFixed(1));
           gapLine.setAttribute('x2', gx.toFixed(1)); gapLine.setAttribute('y2', gy.toFixed(1));
           op(gapLine, gA * clamp((gap - 36) / 40, 0, 1));
-          setT(glabG, gx - 14, gy + 40);
+          setT(glabG, gx - 18, gy - 52);
           op(glabG, gA);
           const cx = clamp((bx + gx) / 2, 175, 470);
           gapG.setAttribute('transform', `translate(${cx.toFixed(1)} 106)`);
@@ -938,19 +936,19 @@
   function makeTopRunner(parent, pen, jersey, capCls) {
     const g = S.group(parent, 'runner-top');
     const s = S.group(g, 'sc');
-    s.setAttribute('transform', 'scale(1.35)');
+    s.setAttribute('transform', 'scale(1.75)');
     const sh = [];
-    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; sh.push([0 + 4.6 * Math.cos(a), 11.5 * Math.sin(a)]); }
-    shape(s, pen, sh, { fillCls: 'sk-fill-card', tintCls: jersey, width: 1.8, rough: 0.4, single: true });
-    pen.circle(s, 1, 0, 7, { fill: 'solid', fillCls: 'sk-fill-card', cls: 'sk-ink', width: 1.8, single: true });
-    pen.circle(s, 1, 0, 6.2, { fill: 'solid', fillCls: capCls, cls: 'sk-ink', width: 1.6, single: true });
-    shape(s, pen, [[6.5, -4.6], [13.5, -2.2], [13.5, 2.2], [6.5, 4.6]], { fillCls: 'sk-fill-card', tintCls: capCls, width: 1.6, rough: 0.3, single: true });
-    S.el('circle', { cx: 1, cy: 0, r: 1.3, class: 'sk-fill-ink' }, s);
+    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; sh.push([-1 + 5.2 * Math.cos(a), 11 * Math.sin(a)]); }
+    shape(s, pen, sh, { fillCls: 'sk-fill-card', tintCls: jersey, width: 1.5, rough: 0.4, single: true });
+    shape(s, pen, [[7.4, -4.6], [15, -3], [15, 3], [7.4, 4.6]], { fillCls: 'sk-fill-card', tintCls: 'sk-fill-hl', width: 1.5, rough: 0.3, single: true });
+    pen.circle(s, 1.5, 0, 7.2, { fill: 'solid', fillCls: 'sk-fill-card', cls: 'sk-ink', width: 1.5, single: true });
+    pen.circle(s, 1.5, 0, 6.6, { fill: 'solid', fillCls: capCls, cls: 'sk-ink', width: 1.4, single: true });
+    S.el('circle', { cx: 1.5, cy: 0, r: 1.3, class: 'sk-fill-ink' }, s);
     return g;
   }
 
   SCENES.bases = function (c) {
-    const gP = c.gP, pen = c.pen, PRE = 0.6, HOLD = 1.8, TS = 1.6, PAUSE = 2.6, GL = 66;
+    const gP = c.gP, pen = c.pen, PRE = 0.6, HOLD = 1.8, TS = 1.6, PAUSE = 2.6, GL = 86;
     c.setH(352);
     const CX = 300, CY = 186, HD = 96;
     const H = [CX, CY + HD], B1 = [CX + HD, CY], B2 = [CX, CY - HD], B3 = [CX - HD, CY];
@@ -973,12 +971,11 @@
     d += `L${H[0]},${H[1]}`;
     S.el('path', { d, class: 'sk-hl', fill: 'none', 'stroke-width': 17, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', opacity: 0.5 }, gP);
     const pm = S.group(gP, 'pm');
-    pen.circle(pm, CX, CY + 8, 11, { fill: 'solid', fillCls: 'sk-fill-hl', cls: 'sk-ink', width: 2.2, single: true });
-    pen.line(pm, CX - 6, CY + 8, CX + 6, CY + 8, { cls: 'sk-ink', width: 2.6, single: true, rough: 0.2 });
+    pen.circle(pm, CX, CY + 8, 12, { fill: 'solid', fillCls: 'sk-fill-hl', cls: 'sk-ink', width: 2.2, single: true });
     [B1, B2, B3].forEach((b) => shape(gP, pen, [[b[0], b[1] - 9], [b[0] + 9, b[1]], [b[0], b[1] + 9], [b[0] - 9, b[1]]], { fillCls: 'sk-fill-card', width: 2.4, rough: 0.4 }));
     shape(gP, pen, [[H[0] - 9, H[1] - 9], [H[0] + 9, H[1] - 9], [H[0] + 9, H[1] + 1], [H[0], H[1] + 10], [H[0] - 9, H[1] + 1]], { fillCls: 'sk-fill-card', width: 2.4, rough: 0.4 });
     const nm = (x, y, t, a) => S.text(gP, x, y, t, { anchor: a, size: 20, cls: 'sk-text' });
-    nm(B1[0] + 16, B1[1] + 32, '1st', 'start'); nm(B2[0] + 18, B2[1] + 8, '2nd', 'start');
+    nm(B1[0] + 16, B1[1] + 32, '1st', 'start'); nm(B2[0] + 24, B2[1] - 8, '2nd', 'start');
     nm(B3[0] - 16, B3[1] - 14, '3rd', 'end'); nm(H[0], H[1] + 36, 'home', 'middle');
     const ftG = S.group(gP, 'ftlabels');
     const mids = [[H, B1, 1, 1], [B1, B2, 1, -1], [B2, B3, -1, -1], [B3, H, -1, 1]];
@@ -1039,7 +1036,7 @@
         setT(rn, p.x, p.y, p.h); op(rn, rA);
         const moving = !finished && !paused && t > 0;
         const ang = p.h, alen = (paused || t <= 0) ? 0 : 44;
-        arr.set(p.x + Math.cos(rad(ang)) * 17, p.y + Math.sin(rad(ang)) * 17, ang, finished ? 0 : alen);
+        arr.set(p.x + Math.cos(rad(ang)) * 24, p.y + Math.sin(rad(ang)) * 24, ang, finished ? 0 : alen);
         // ghost: first corner whose turn has begun and which the ghost has not yet left behind
         let k = -1;
         for (let i = 0; i < sIn.length; i++) if (s >= sIn[i] && s - sIn[i] <= GL) k = i;
@@ -1050,12 +1047,12 @@
           const pin = at(sIn[k]), dg = s - sIn[k];
           const gx = pin.x + Math.cos(rad(pin.h)) * dg, gy = pin.y + Math.sin(rad(pin.h)) * dg;
           setT(ghR, gx, gy, pin.h);
-          gArr.set(gx + Math.cos(rad(pin.h)) * 17, gy + Math.sin(rad(pin.h)) * 17, pin.h, 44);
+          gArr.set(gx + Math.cos(rad(pin.h)) * 24, gy + Math.sin(rad(pin.h)) * 24, pin.h, 44);
           const gap = Math.hypot(gx - p.x, gy - p.y);
           conn.setAttribute('x1', p.x.toFixed(1)); conn.setAttribute('y1', p.y.toFixed(1));
           conn.setAttribute('x2', gx.toFixed(1)); conn.setAttribute('y2', gy.toFixed(1));
           op(conn, clamp((gap - 24) / 20, 0, 1));
-          op(ghostBox, 0.6 * gA * (1 - prog(dg, GL - 22, GL)));
+          op(ghostBox, 0.8 * gA * (1 - prog(dg, GL - 22, GL)));
         }
         show(gl, true);
         op(glInner, gA > 0.01 || cfg.showGhost ? 1 : 0);
@@ -1090,30 +1087,30 @@
     const stl = S.group(gP, 'stands-label');
     S.text(stl, 305, 150, 'stands', { anchor: 'middle', size: 18, cls: 'sk-text-soft' });
     c.fade('labels', stl);
-    const fan = makeFigure(gP, pen, { sc: 0.78, facing: 1, jersey: 'sk-fill-good', cap: 'sk-fill-good', seed: 81, lw: 3.4 });
+    const fan = makeFigure(gP, pen, { sc: 0.95, facing: 1, jersey: 'sk-fill-good', cap: 'sk-fill-good', seed: 81, lw: 3.4 });
     fan.place(300, 96);
     fan.pose({ legF: [80, 5], legB: [85, 8], lean: 4, armF: [150, 150], armB: [20, 30] });
 
-    const cat = makeFigure(gP, pen, { sc: 0.95, facing: -1, jersey: 'sk-fill-accent', cap: 'sk-fill-accent', capBack: true, mask: true, seed: 83 });
-    cat.place(538, G);
-    const M = [513, 172];
+    const cat = makeFigure(gP, pen, { sc: 1.2, facing: -1, jersey: 'sk-fill-accent', cap: 'sk-fill-accent', capBack: true, mask: true, seed: 83 });
+    cat.place(542, G);
+    const M = [511, 164];
     cat.pose({ legF: [80, 5], legB: [85, 8], lean: 10, armF: { to: cat.toLocal(M[0], M[1]), bend: 1 }, armB: [30, 20] });
-    const fig = makeFigure(gP, pen, { sc: 0.95, facing: 1, jersey: 'sk-fill-accent', cap: 'sk-fill-accent', glove: true, seed: 85 });
+    const fig = makeFigure(gP, pen, { sc: 1.25, facing: 1, jersey: 'sk-fill-accent', cap: 'sk-fill-accent', glove: true, seed: 85 });
     fig.place(62, MT);
     pitcherPose(fig, 0, W, { frozen: true });
     const R = fig.world(fig.hands.F[0], fig.hands.F[1]);
-    const mg = S.group(gP, 'mitt'); mitt(mg, pen, 9); setT(mg, M[0] - 2, M[1]);
+    const mg = S.group(gP, 'mitt'); mitt(mg, pen, 11); setT(mg, M[0] - 2, M[1]);
 
     // observer rings + tags
     const rings = {
       catcher: S.group(gP, 'ring-c'), stands: S.group(gP, 'ring-s'), ball: S.group(gP, 'ring-b'),
     };
     const ringDash = (g, r) => { const e = S.el('circle', { cx: 0, cy: 0, r, class: 'sk-hl', fill: 'none', 'stroke-width': 6, 'stroke-linecap': 'round', 'stroke-dasharray': '10 7', opacity: 0.95 }, g); return e; };
-    ringDash(rings.catcher, 36); setT(rings.catcher, 538, 160);
-    ringDash(rings.stands, 30); setT(rings.stands, 300, 62);
+    ringDash(rings.catcher, 40); setT(rings.catcher, 538, 148);
+    ringDash(rings.stands, 33); setT(rings.stands, 300, 60);
     ringDash(rings.ball, 15);
-    const tagC = S.text(rings.catcher, 0, -44, 'reference point', { anchor: 'middle', size: 18, cls: 'sk-text' });
-    const tagS = S.text(rings.stands, 44, 6, 'reference point', { anchor: 'start', size: 18, cls: 'sk-text' });
+    const tagC = S.text(rings.catcher, 0, -50, 'reference point', { anchor: 'middle', size: 18, cls: 'sk-text' });
+    const tagS = S.text(rings.stands, 46, 6, 'reference point', { anchor: 'start', size: 18, cls: 'sk-text' });
     const tagB = S.text(rings.ball, 0, -26, 'reference point', { anchor: 'middle', size: 18, cls: 'sk-text' });
     const ringsAll = ['catcher', 'stands', 'ball'];
     [tagC, tagS, tagB].forEach((t) => c.fade('labels', t));
@@ -1234,7 +1231,7 @@
     pen.line(gP, X1, BY - 6, X1, BY + 6, { cls: 'sk-ink', width: 2.2, single: true, rough: 0.2 });
     S.text(gP, (X0 + X1) / 2, BY + 28, `${fmt(baseFt, 0)} ft`, { anchor: 'middle', size: 22, cls: 'sk-text' });
     // tape + strobe dots (pool)
-    const TY = 86;
+    const TY = 98;
     const tape = pen.line(gP, X0 - 10, TY, X1 + 10, TY, { cls: 'sk-soft', width: 1.8, single: true });
     tape.setAttribute('stroke-dasharray', '2 7');
     const pool = [], dotsG = S.group(gP, 'strobe');
@@ -1273,7 +1270,7 @@
           if (!on) return;
           const px = X0 + i * v * pxFt;
           setT(p.d, px, TY);
-          p.tl.setAttribute('x', px.toFixed(1)); p.tl.setAttribute('y', (TY + 32).toFixed(1)); setTxt(p.tl, `${i} s`);
+          p.tl.setAttribute('x', px.toFixed(1)); p.tl.setAttribute('y', (TY - 16).toFixed(1)); setTxt(p.tl, `${i} s`);
           if (i > 0) { p.gap.setAttribute('x', (px - v * pxFt / 2).toFixed(1)); p.gap.setAttribute('y', (TY - 16).toFixed(1)); setTxt(p.gap, c.hid('readout') ? '? ft' : `${fmt(v, 0)} ft`); } else setTxt(p.gap, '');
         });
         setTxt(spdT, c.hid('readout') ? 'speed: ?' : (done ? `${fmt(v, 0)} ft/s the whole way` : `speed: ${fmt(v, 0)} ft/s`));
@@ -1287,7 +1284,7 @@
   /* -------------------------------------------------------------- average */
   SCENES.average = function (c) {
     const gP = c.gP, pen = c.pen, PRE = 0.7, HOLD = 4.4;
-    const XS = 76, XE = 420, Y1 = 158, Y2 = 238, SC = 0.85;
+    const XS = 76, XE = 420, Y1 = 166, Y2 = 250, SC = 0.98;
     const cfg0 = c.cfg, segs = cfg0.segments;
     let a = 0, b = 0;
     segs.forEach((s) => { s.d0 = a; s.t0 = b; a += s.d; b += s.t; s.v = s.d / s.t; });
@@ -1340,12 +1337,12 @@
       });
     });
     // ruler row: base names
-    const RY = Y2 + 20;
+    const RY = Y2 + 16;
     pen.line(gP, xOf(0) - 12, RY, xOf(totalD) + 12, RY, { cls: 'sk-soft', width: 2.2, single: true });
     bounds.forEach((bd, i) => {
       const x = xOf(bd);
       pen.line(gP, x, RY - 3, x, RY + 9, { cls: 'sk-soft', width: 2.2, single: true, rough: 0.3 });
-      S.text(gP, x, RY + 30, i < NAMES.length ? NAMES[i] : '', { anchor: 'middle', size: 19, cls: 'sk-text-soft' });
+      S.text(gP, x, RY + 28, i < NAMES.length ? NAMES[i] : '', { anchor: 'middle', size: 19, cls: 'sk-text-soft' });
     });
     // leg labels
     const legsG = S.group(gP, 'legs');
@@ -1358,12 +1355,12 @@
       while (r < 3 && taken[r].some((q) => cx + hw > q[0] && cx - hw < q[1])) r++;
       taken[r].push([cx - hw, cx + hw]);
       rows = Math.max(rows, r + 1);
-      const y = RY + 62 + r * 24;
+      const y = RY + 66 + r * 24;
       if (move) {
         const xa = xOf(s.d0) + 4, xb = xOf(s.d0 + s.d) - 4;
-        pen.line(legsG, xa, RY + 44, xb, RY + 44, { cls: 'sk-accent', width: 2.4, single: true, rough: 0.5 });
-        pen.line(legsG, xa, RY + 39, xa, RY + 49, { cls: 'sk-accent', width: 2.2, single: true, rough: 0.2 });
-        pen.line(legsG, xb, RY + 39, xb, RY + 49, { cls: 'sk-accent', width: 2.2, single: true, rough: 0.2 });
+        pen.line(legsG, xa, RY + 42, xb, RY + 42, { cls: 'sk-accent', width: 2.4, single: true, rough: 0.5 });
+        pen.line(legsG, xa, RY + 37, xa, RY + 47, { cls: 'sk-accent', width: 2.2, single: true, rough: 0.2 });
+        pen.line(legsG, xb, RY + 37, xb, RY + 47, { cls: 'sk-accent', width: 2.2, single: true, rough: 0.2 });
       }
       S.text(legsG, cx, y, txt, { anchor: 'middle', size: 20, cls: move ? 'sk-text' : 'sk-text-bad' });
     });
@@ -1375,7 +1372,7 @@
     ghostify(gh.g);
 
     // calculation
-    const cy = RY + 62 + Math.max(rows, 1) * 24 + 22;
+    const cy = RY + 66 + Math.max(rows, 1) * 24 + 24;
     const calcG = S.group(gP, 'calc');
     S.text(calcG, 300, cy, 'average speed = total distance ÷ total time', { anchor: 'middle', size: 22, cls: 'sk-text' });
     S.text(calcG, 300, cy + 36, `= ${fmt(totalD, 1)} ÷ ${fmt(totalT, 1)} = ${fmt(avg, 1)} ft/s`, { anchor: 'middle', size: 32, cls: 'sk-text-accent' });

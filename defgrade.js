@@ -31,7 +31,10 @@
     let m;
     WORD_RE.lastIndex = 0;
     while ((m = WORD_RE.exec(src))) {
-      out.push({ raw: m[0], w: m[0].toLowerCase().replace(/['’`]/g, ''), start: m.index, end: m.index + m[0].length });
+      let w = m[0].toLowerCase().replace(/['’`]/g, '');
+      // any kid spelling of "doesn't" / "didn't" (dusint, dozent, duznt, didint) reads as "not"
+      if (/^d[aeiouy]{0,3}[sz]{1,2}[aeiouy]{0,3}n{1,2}t?$/.test(w) || /^d[iu]{1,2}d[aeiouy]?nt$/.test(w)) w = 'not';
+      out.push({ raw: m[0], w, start: m.index, end: m.index + m[0].length });
     }
     return out;
   }
