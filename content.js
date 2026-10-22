@@ -108,6 +108,45 @@
       }
     }
   };
+  /* What each key word means, pointed at the baseball picture, plus a one-tap "do you get it" check
+   * shown on the teach panel before he types. In every check the first choice is the right one (app.js shuffles). */
+  window.DEF_MEANING = {
+    'motion': {
+      words: [['Change', "it doesn't stay put: the number under the ball keeps going up"], ['position', 'where the ball is: 0 ft in your hand, 46 ft at home plate']],
+      check: { q: 'Which one is in motion?', choices: ['The pitch flying from the mound to the plate', 'A ball sitting still in the ball bucket'],
+        fb: ['', 'The ball in the bucket stays in the same position. No change in position means no motion.'] }
+    },
+    'acceleration': {
+      words: [['rate', 'how fast something happens'], ['change', 'going from one number to another'], ['velocity/speed', 'the radar gun number: 0 mph, then 20, then 50']],
+      check: { q: 'Your arm takes the ball from 0 to 50 mph. Is the ball accelerating?', choices: ['Yes. Its speed is changing', 'No. It is just moving'],
+        fb: ['', 'Its speed goes from 0 to 50 mph. A change in speed is acceleration.'] }
+    },
+    'reference-point': {
+      words: [['location', 'where someone is'], ['observer', 'the person watching: the catcher, or a fan in the stands'], ['of motion', 'watching something move, like the pitch']],
+      check: { q: 'You are the catcher watching the pitch come in. What is your reference point?', choices: ['Where you are crouched behind the plate', "The pitcher's mound", 'The ball'],
+        fb: ['', 'The pitcher is not the one watching here. You are the observer, so the reference point is where you are.', 'The ball is what is moving. The reference point is where the watcher is: you, behind the plate.'] }
+    },
+    'velocity': {
+      words: [['Describing a moving object', 'telling about something that moves, like your pitch'], ['speed', 'how fast: 50 mph on the radar gun'], ['direction', 'which way: the arrow pointing at home plate']],
+      check: { q: 'Which one is a velocity?', choices: ['50 mph toward home plate', '50 mph', '46 feet'],
+        fb: ['', 'That is only the speed. Velocity needs a direction too.', 'That is a distance. Velocity is a speed and a direction.'] }
+    },
+    'constant-speed': {
+      words: [['speed', 'how fast: 15 ft/s'], ['does not vary or change', 'stays the same the whole time: every gap between the dots is the same']],
+      check: { q: 'A runner jogs to first base at 15 ft/s the whole way. Is that constant speed?', choices: ['Yes. The speed does not change', 'No. The runner is moving'],
+        fb: ['', 'Moving is fine. Constant speed means the speed stays the same, and 15 ft/s the whole way does.'] }
+    },
+    'negative-acceleration': {
+      words: [['speed', 'how fast the ball is going'], ['decreases', "goes down: 50 mph down to 0 when the catcher's mitt stops it"]],
+      check: { q: "The catcher's mitt stops the ball. What happens to its speed?", choices: ['It decreases. That is negative acceleration', 'It increases. That is positive acceleration'],
+        fb: ['', 'The ball goes from 50 mph to 0. Its speed goes down, so it decreases.'] }
+    },
+    'positive-acceleration': {
+      words: [['speed', 'how fast the ball is going'], ['increases', 'goes up: 0 mph in your hand, up to 50 mph when you let go']],
+      check: { q: 'Your arm whips the ball forward. What happens to its speed?', choices: ['It increases. That is positive acceleration', 'It decreases. That is negative acceleration'],
+        fb: ['', 'The ball goes from 0 to 50 mph. Its speed goes up, so it increases.'] }
+    }
+  };
   window.TOPICS = [
     { id: 'defs',     name: 'The 7 key definitions' },
     { id: 'motion',   name: 'Motion & reference point' },

@@ -842,3 +842,18 @@ mark.def-miss { background: var(--hl); outline: 2px solid var(--ink); outline-of
 }
 .tr-teach-figure .qdiagram, .mt-fig .qdiagram { grid-area: auto; }
 .tr-exact .note-label { display: block; margin-bottom: 2px; }
+
+/* ---- teach panel: what the words mean + "do you get it" check ---- */
+.tr-words { display: grid; gap: 4px; margin: 2px 0 4px; padding: 8px 12px; background: var(--card); border: 2px dashed var(--grid); border-radius: 10px; }
+.tr-words ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+.tr-words li { line-height: 1.35; }
+.tr-words .def-key { background: linear-gradient(transparent 55%, var(--hl-soft) 55%); padding: 0 2px; }
+.tr-check { display: grid; gap: 8px; margin-top: 10px; padding: 12px 14px; border: 2px solid var(--accent); border-radius: 14px 10px 16px 9px / 9px 15px 10px 14px; background: var(--card); }
+.tr-check-q { margin: 0; font-weight: 700; }
+.tr-check-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.tr-check-choice { flex: 1 1 14rem; min-height: 44px; text-align: left; }
+.tr-check-choice.is-right { border-color: var(--good); background: color-mix(in srgb, var(--good) 14%, var(--card)); }
+.tr-check-choice.is-wrong { border-color: var(--bad); opacity: .75; }
+.tr-check-fb { margin: 0; min-height: 1.3em; }
+.tr-check-fb.is-good { color: var(--good); font-weight: 700; }
+.tr-check-fb.is-bad { color: var(--bad); }

@@ -1905,6 +1905,49 @@
   }
 
   /* phase: teach (wrong, or "I don't know yet") */
+  /** "What the words mean": each key word of the definition pointed at the picture, so the words mean something. */
+  function meaningWords(termId) {
+    const mm = (window.DEF_MEANING || {})[termId];
+    if (!mm || !mm.words) return null;
+    return h('div', { class: 'tr-words', 'data-words': '' }, [
+      h('span', { class: 'note-label' }, 'What the words mean'),
+      h('ul', null, mm.words.map(([w, meaning]) => h('li', null, [h('strong', { class: 'def-key' }, w), h('span', null, ' = ' + meaning)]))),
+    ]);
+  }
+  /** A one-tap "do you get it" question about the picture. onPass runs once he taps the right answer. */
+  function meaningCheck(termId, onPass) {
+    const mm = (window.DEF_MEANING || {})[termId];
+    if (!mm || !mm.check) { onPass(); return null; }
+    const c = mm.check;
+    const fbLine = h('p', { class: 'tr-check-fb', role: 'status', 'data-check-fb': '' });
+    let done = false;
+    const opts = shuffle(c.choices.map((text, i) => ({ text, i })));
+    const btns = opts.map((o) => {
+      const b = h('button', { class: 'choice tr-check-choice', type: 'button', 'data-check-i': String(o.i) }, o.text);
+      b.addEventListener('click', () => {
+        if (done) return;
+        if (o.i === 0) {
+          done = true;
+          b.classList.add('is-right');
+          btns.forEach((x) => { x.disabled = true; });
+          fbLine.textContent = 'Right.';
+          fbLine.className = 'tr-check-fb is-good';
+          onPass();
+        } else {
+          b.classList.add('is-wrong');
+          b.disabled = true;
+          fbLine.textContent = c.fb[o.i] || 'Not that one. Look at the picture and try again.';
+          fbLine.className = 'tr-check-fb is-bad';
+        }
+      });
+      return b;
+    });
+    return h('div', { class: 'tr-check', 'data-check': '' }, [
+      h('p', { class: 'tr-check-q' }, [h('span', { class: 'note-label' }, 'Do you get it?'), ' ' + c.q]),
+      h('div', { class: 'tr-check-choices' }, btns),
+      fbLine,
+    ]);
+  }
   function teachPanel(termId, o) {
     const t = termOf(termId), m = memOf(termId), mt = m.teach || {};
     const view = state.tview;
@@ -1916,6 +1959,7 @@
         h('p', { class: 'eyebrow' }, o.eyebrow),
         h('h2', { class: 'tr-term' }, t.term),
         h('p', { class: 'tr-bigdef', 'data-teach-def': '' }, h('strong', null, defNode(termId, null, 'def-key'))),
+        meaningWords(termId),
         m.hook ? h('p', { class: 'tr-hook' }, m.hook) : null,
         ...memoryLines(termId, false),
         m.gesture ? h('p', { class: 'tr-gesture' }, [h('span', { class: 'note-label' }, 'Do this while you say it'), lowerFirst(m.gesture)]) : null,
@@ -1962,10 +2006,17 @@
     const open = () => { if (cur.phase === 'copy') return; startCopy.hidden = true; mountCopy(zone, 'copy'); state.tview.onEnter = null; };
     startCopy.addEventListener('click', open);
     const panel = teachPanel(entry.term, { eyebrow: cur.skipped ? "That's okay. Here it is." : 'Not yet. Here it is.' });
-    trSetBody(h('div', { class: 'tr-card tr-teach-card', 'data-note': 'teach' }, [yours, panel, h('div', { class: 'actionbar tr-actions' }, [h('span', { class: 'spacer' }), startCopy]), zone]), '[data-tr-copy]');
+    // he answers the "do you get it" question about the picture before he types
+    startCopy.hidden = true;
+    const check = meaningCheck(entry.term, () => {
+      startCopy.hidden = false;
+      try { startCopy.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+      if (state.tview) state.tview.onEnter = open;
+    });
+    trSetBody(h('div', { class: 'tr-card tr-teach-card', 'data-note': 'teach' }, [yours, panel, check, h('div', { class: 'actionbar tr-actions' }, [h('span', { class: 'spacer' }), startCopy]), zone]), check ? null : '[data-tr-copy]');
     const v = state.tview;
     if (v.pending) { const f = v.pending; v.pending = null; f(); }
-    v.onEnter = open;
+    v.onEnter = check ? null : open;
     announce('Here it is. Look at the picture, then type it while you look.');
   }
   /** Almost: the definition again with the missing words lit, and a typing box right under it. */
@@ -2012,9 +2063,18 @@
       // a miss always teaches: the exact words, the memory trick, the baseball version and the animation
       const yours = cur.text && cur.text.trim() ? h('div', { class: 'tr-yours' }, [h('span', { class: 'note-label' }, 'You typed'), h('span', { class: 'tr-yours-text', 'data-typed': '' }, cur.text.trim()), res.tip ? h('span', { class: 'note-small tr-tip' }, ' ' + res.tip) : null]) : null;
       const panel = teachPanel(entry.term, { eyebrow: v === 'almost' ? 'Almost. Here it is.' : cur.skipped ? "That's okay. Here it is." : 'Not yet. Here it is.' });
-      trSetBody(h('div', { class: 'tr-card tr-teach-card', 'data-note': v }, [yours, panel, h('div', { class: 'actionbar tr-actions' }, [h('span', { class: 'spacer' }), nextBtn(last ? 'Continue' : 'Next')])]), '[data-tr-next]');
+      const nb = nextBtn(last ? 'Continue' : 'Next');
+      nb.hidden = true;
+      const check = meaningCheck(entry.term, () => {
+        nb.hidden = false;
+        try { nb.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+        if (state.tview) state.tview.onEnter = () => trAdvance(false);
+      });
+      trSetBody(h('div', { class: 'tr-card tr-teach-card', 'data-note': v }, [yours, panel, check, h('div', { class: 'actionbar tr-actions' }, [h('span', { class: 'spacer' }), nb])]), check ? null : '[data-tr-next]');
       const vw = state.tview;
       if (vw.pending) { const f = vw.pending; vw.pending = null; f(); }
+      vw.onEnter = check ? null : () => trAdvance(false);
+      return;
     }
     state.tview.onEnter = () => trAdvance(false);
   }
