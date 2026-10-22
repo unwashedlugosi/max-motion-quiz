@@ -1087,7 +1087,7 @@
     S.el('polygon', { points: stands.map((p) => p.join(',')).join(' '), class: 'sk-fill-accent' }, gP);
     pen.poly(gP, stands, { cls: 'sk-soft', width: 2.4 });
     const stl = S.group(gP, 'stands-label');
-    S.text(stl, 305, 150, 'stands', { anchor: 'middle', size: 18, cls: 'sk-text-soft' });
+    S.text(stl, 305, G - 12, 'stands', { anchor: 'middle', size: 18, cls: 'sk-text-soft' });
     c.fade('labels', stl);
     const fan = makeFigure(gP, pen, { sc: 0.95, facing: 1, jersey: 'sk-fill-good', cap: 'sk-fill-good', seed: 81, lw: 3.4 });
     fan.place(300, 96);
@@ -1113,7 +1113,7 @@
     ringDash(rings.ball, 15);
     const tagC = S.text(rings.catcher, 0, -50, 'reference point', { anchor: 'middle', size: 18, cls: 'sk-text' });
     const tagS = S.text(rings.stands, 46, 6, 'reference point', { anchor: 'start', size: 18, cls: 'sk-text' });
-    const tagB = S.text(rings.ball, 0, -26, 'reference point', { anchor: 'middle', size: 18, cls: 'sk-text' });
+    const tagB = S.text(rings.ball, 0, 38, 'reference point', { anchor: 'middle', size: 18, cls: 'sk-text' });
     const ringsAll = ['catcher', 'stands', 'ball'];
     [tagC, tagS, tagB].forEach((t) => c.fade('labels', t));
 
@@ -1216,8 +1216,8 @@
   /* --------------------------------------------------------------- steady */
   SCENES.steady = function (c) {
     const gP = c.gP, pen = c.pen, PRE = 0.6, HOLD = 2.6, TS = 1.3;
-    const G = 214, X0 = 62, X1 = 538, SC = 1.25;
-    c.setH(340);
+    const G = 226, X0 = 62, X1 = 538, SC = 1.25;
+    c.setH(352);
     const baseFt = c.cfg.baseFt, pxFt = (X1 - X0) / baseFt;
     groundLine(gP, pen, G, 14, 586);
     plate(gP, pen, X0, G);
@@ -1250,7 +1250,7 @@
     const clkT = S.text(gP, 586, 32, '', { anchor: 'end', size: 24, cls: 'sk-text' });
     const clkG = S.group(gP, 'clk'); clkG.appendChild(clkT); c.fade('clock', clkG);
     const lab = S.group(gP, 'label');
-    S.text(lab, 300, 328, 'speed does not vary or change', { anchor: 'middle', size: 24, cls: 'sk-text-good' });
+    S.text(lab, 300, 340, 'speed does not vary or change', { anchor: 'middle', size: 24, cls: 'sk-text-good' });
     c.fade('labels', lab);
     const cap = makeCaption(gP, 14, 28, 560, 22, 'start', 'sk-text');
     c.fade('caption', cap.g);
@@ -1272,8 +1272,8 @@
           if (!on) return;
           const px = X0 + i * v * pxFt;
           setT(p.d, px, TY);
-          p.tl.setAttribute('x', px.toFixed(1)); p.tl.setAttribute('y', (TY - 16).toFixed(1)); setTxt(p.tl, `${i} s`);
-          if (i > 0) { p.gap.setAttribute('x', (px - v * pxFt / 2).toFixed(1)); p.gap.setAttribute('y', (TY - 16).toFixed(1)); setTxt(p.gap, c.hid('readout') ? '? ft' : `${fmt(v, 0)} ft`); } else setTxt(p.gap, '');
+          p.tl.setAttribute('x', px.toFixed(1)); p.tl.setAttribute('y', (TY + 26).toFixed(1)); setTxt(p.tl, `${i} s`);
+          if (i > 0) { p.gap.setAttribute('x', (px - v * pxFt / 2).toFixed(1)); p.gap.setAttribute('y', (TY - 15).toFixed(1)); setTxt(p.gap, c.hid('readout') ? '? ft' : `${fmt(v, 0)} ft`); } else setTxt(p.gap, '');
         });
         setTxt(spdT, c.hid('readout') ? 'speed: ?' : (done ? `${fmt(v, 0)} ft/s the whole way` : `speed: ${fmt(v, 0)} ft/s`));
         setTxt(clkT, `time: ${fmt(Math.min(t, T), 0)} s`);

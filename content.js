@@ -22,7 +22,7 @@
     'motion': {
       hook: 'Motion means you Change Places.',
       mnemonic: 'C-P: Change in Position',
-      picture: 'A chess piece moving to a new square.',
+      picture: 'Your pitch leaving your hand and landing in the catcher\'s mitt.',
       gesture: 'Move your hand from one spot to another.',
       baseball: "You throw a pitch. The ball's position changes from your hand to the catcher's mitt. That's motion.",
       teach: {
@@ -34,7 +34,7 @@
     'acceleration': {
       hook: 'Press the accelerator and your speed changes.',
       mnemonic: 'Race Car Velocity = Rate of Change in Velocity',
-      picture: 'A speedometer needle climbing.',
+      picture: 'The radar gun climbing as your arm whips the ball.',
       gesture: 'Press an imaginary gas pedal.',
       baseball: 'Your arm takes the ball from 0 to 50 mph. Its speed changes, so it accelerates.',
       teach: {
@@ -46,7 +46,7 @@
     'reference-point': {
       hook: 'Where the watcher stands.',
       mnemonic: 'LOOM = Location Of the Observer of Motion',
-      picture: 'A person on the platform watching the train go by.',
+      picture: 'The catcher, a fan in the stands, and the ball itself all see the same pitch differently.',
       gesture: 'Point to your own eyes.',
       baseball: 'The catcher sees the ball coming straight at him. A fan in the stands sees it go left to right. Where you watch from is your reference point.',
       teach: {
@@ -59,7 +59,7 @@
     'velocity': {
       hook: 'Speed tells how fast. Velocity tells how fast and which way.',
       mnemonic: 'Dogs Make Our Shoes Dirty = Describing a Moving Object using Speed and Direction',
-      picture: 'An arrow pointing on a compass.',
+      picture: 'The radar gun says 50 mph, and the arrow points at home plate.',
       gesture: 'Point in a direction while you say the speed.',
       baseball: '50 mph is the speed. Toward home plate is the direction. 50 mph toward home plate is the velocity.',
       teach: {
@@ -72,7 +72,7 @@
     'constant-speed': {
       hook: 'Cruise control.',
       mnemonic: 'Never Varies, Never Changes: does not vary or change',
-      picture: 'Dots with the same gap every second.',
+      picture: 'A runner jogging to first, the same gap every second.',
       gesture: 'Glide a flat hand straight across.',
       baseball: 'A runner jogging to first at the same pace the whole way. The speed does not vary or change.',
       teach: {
@@ -84,7 +84,7 @@
     'negative-acceleration': {
       hook: 'Negative is a downer.',
       mnemonic: 'Negative = speed Decreases (D for Down)',
-      picture: 'A car slowing to a stop sign.',
+      picture: 'The ball slowing to a stop in the catcher\'s mitt.',
       gesture: 'Thumbs down.',
       baseball: "The catcher's mitt stops the ball. Its speed decreases to 0.",
       pair: 'Positive and negative acceleration use the same sentence. Only one word changes: increases or decreases.',
@@ -97,7 +97,7 @@
     'positive-acceleration': {
       hook: 'Positive is a plus.',
       mnemonic: 'Positive = speed Increases (I for Up, like going up a hill of numbers)',
-      picture: 'A car pulling away faster and faster.',
+      picture: 'The ball speeding up in your hand as you throw.',
       gesture: 'Thumbs up.',
       baseball: 'Your arm whips the ball forward. Its speed increases.',
       pair: 'Positive and negative acceleration use the same sentence. Only one word changes: increases or decreases.',
