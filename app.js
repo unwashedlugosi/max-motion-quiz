@@ -2006,7 +2006,16 @@
       v !== 'correct' && res.tip ? h('p', null, res.tip) : null,
       v === 'correct' ? exactBlock(entry.term) : h('div', { class: 'note-block exact-def tr-exact' }, [h('span', { class: 'note-label' }, "The teacher's exact words"), h('strong', { class: 'def-hl tr-big' }, [termOf(entry.term).term + ': ', defNode(entry.term, v === 'almost' ? res.missing : null, v === 'almost' ? 'def-miss' : 'def-key')])]),
     ]);
-    trSetBody(h('div', { class: 'tr-card' }, [note, h('div', { class: 'actionbar tr-actions' }, [h('span', { class: 'spacer' }), nextBtn(last ? 'Continue' : 'Next')])]), '[data-tr-next]');
+    if (v === 'correct') {
+      trSetBody(h('div', { class: 'tr-card' }, [note, h('div', { class: 'actionbar tr-actions' }, [h('span', { class: 'spacer' }), nextBtn(last ? 'Continue' : 'Next')])]), '[data-tr-next]');
+    } else {
+      // a miss always teaches: the exact words, the memory trick, the baseball version and the animation
+      const yours = cur.text && cur.text.trim() ? h('div', { class: 'tr-yours' }, [h('span', { class: 'note-label' }, 'You typed'), h('span', { class: 'tr-yours-text', 'data-typed': '' }, cur.text.trim()), res.tip ? h('span', { class: 'note-small tr-tip' }, ' ' + res.tip) : null]) : null;
+      const panel = teachPanel(entry.term, { eyebrow: v === 'almost' ? 'Almost. Here it is.' : cur.skipped ? "That's okay. Here it is." : 'Not yet. Here it is.' });
+      trSetBody(h('div', { class: 'tr-card tr-teach-card', 'data-note': v }, [yours, panel, h('div', { class: 'actionbar tr-actions' }, [h('span', { class: 'spacer' }), nextBtn(last ? 'Continue' : 'Next')])]), '[data-tr-next]');
+      const vw = state.tview;
+      if (vw.pending) { const f = vw.pending; vw.pending = null; f(); }
+    }
     state.tview.onEnter = () => trAdvance(false);
   }
 
