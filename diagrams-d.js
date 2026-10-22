@@ -940,7 +940,9 @@
     const sh = [];
     for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; sh.push([-1 + 5.2 * Math.cos(a), 11 * Math.sin(a)]); }
     shape(s, pen, sh, { fillCls: 'sk-fill-card', tintCls: jersey, width: 1.5, rough: 0.4, single: true });
-    shape(s, pen, [[7.4, -4.6], [15, -3], [15, 3], [7.4, 4.6]], { fillCls: 'sk-fill-card', tintCls: 'sk-fill-hl', width: 1.5, rough: 0.3, single: true });
+    pen.line(s, -1, -10.5, 8.5, -8, { cls: 'sk-ink', width: 2.1, single: true, rough: 0.3 });
+    pen.line(s, -1, 10.5, 8.5, 8, { cls: 'sk-ink', width: 2.1, single: true, rough: 0.3 });
+    shape(s, pen, [[7.4, -4.6], [15, -3], [15, 3], [7.4, 4.6]], { fillCls: 'sk-fill-card', tintCls: capCls, width: 1.5, rough: 0.3, single: true });
     pen.circle(s, 1.5, 0, 7.2, { fill: 'solid', fillCls: 'sk-fill-card', cls: 'sk-ink', width: 1.5, single: true });
     pen.circle(s, 1.5, 0, 6.6, { fill: 'solid', fillCls: capCls, cls: 'sk-ink', width: 1.4, single: true });
     S.el('circle', { cx: 1.5, cy: 0, r: 1.3, class: 'sk-fill-ink' }, s);
@@ -983,11 +985,11 @@
     c.fade('labels', ftG);
 
     // runners + arrows
-    const ghR = makeTopRunner(gP, pen, 'sk-fill-bad', 'sk-fill-bad'); ghostify(ghR);
+    const ghR = makeTopRunner(gP, pen, 'sk-fill-accent', 'sk-fill-bad'); ghostify(ghR);
     const gArr = makeArrow(gP, 'sk-accent', 3.6, 12, 12); gArr.path.setAttribute('stroke-dasharray', '6 5');
     const conn = S.el('line', { x1: 0, y1: 0, x2: 0, y2: 0, class: 'sk-bad', 'stroke-width': 3, 'stroke-dasharray': '7 6', 'stroke-linecap': 'round' }, gP);
     const ghostBox = S.group(gP, 'ghost-box'); ghostBox.appendChild(ghR); ghostBox.appendChild(gArr.g); ghostBox.appendChild(conn);
-    const rn = makeTopRunner(gP, pen, 'sk-fill-bad', 'sk-fill-bad');
+    const rn = makeTopRunner(gP, pen, 'sk-fill-accent', 'sk-fill-bad');
     const arr = makeArrow(gP, 'sk-accent', 4.6, 14, 4);
     c.fade('arrow', arr.g);
     const gl = S.group(gP, 'ghost-label');
@@ -1036,7 +1038,7 @@
         setT(rn, p.x, p.y, p.h); op(rn, rA);
         const moving = !finished && !paused && t > 0;
         const ang = p.h, alen = (paused || t <= 0) ? 0 : 44;
-        arr.set(p.x + Math.cos(rad(ang)) * 24, p.y + Math.sin(rad(ang)) * 24, ang, finished ? 0 : alen);
+        arr.set(p.x + Math.cos(rad(ang)) * 30, p.y + Math.sin(rad(ang)) * 30, ang, finished ? 0 : alen);
         // ghost: first corner whose turn has begun and which the ghost has not yet left behind
         let k = -1;
         for (let i = 0; i < sIn.length; i++) if (s >= sIn[i] && s - sIn[i] <= GL) k = i;
@@ -1047,7 +1049,7 @@
           const pin = at(sIn[k]), dg = s - sIn[k];
           const gx = pin.x + Math.cos(rad(pin.h)) * dg, gy = pin.y + Math.sin(rad(pin.h)) * dg;
           setT(ghR, gx, gy, pin.h);
-          gArr.set(gx + Math.cos(rad(pin.h)) * 24, gy + Math.sin(rad(pin.h)) * 24, pin.h, 44);
+          gArr.set(gx + Math.cos(rad(pin.h)) * 30, gy + Math.sin(rad(pin.h)) * 30, pin.h, 44);
           const gap = Math.hypot(gx - p.x, gy - p.y);
           conn.setAttribute('x1', p.x.toFixed(1)); conn.setAttribute('y1', p.y.toFixed(1));
           conn.setAttribute('x2', gx.toFixed(1)); conn.setAttribute('y2', gy.toFixed(1));
